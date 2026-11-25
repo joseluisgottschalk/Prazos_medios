@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prazos Médios — Vendas, Financeiro e Compras</title>
+<style>
+  :root{
+    --surface:#ffffff; --bg:#f5f5f3; --border:#e3e3e0; --grid:#ececea;
+    --text:#191919; --text2:#666666; --muted:#8a8a8a;
+    --s1:#257de0; --s2:#f47230; --s3:#00b894;
+    --good:#008a17; --warn:#b97c00; --bad:#d23a3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:13px}
+  header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  header h1{font-size:18px;margin:0;font-weight:600}
+  header .sub{color:var(--text2);font-size:12px;margin-top:2px}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button,select,input{font:inherit;font-size:12.5px}
+  button{border:1px solid var(--border);background:var(--surface);border-radius:6px;padding:6px 12px;cursor:pointer;color:var(--text)}
+  button:hover{background:#f0f0ee}
+  button.primary{background:var(--s1);border-color:var(--s1);color:#fff}
+  button.primary:hover{background:#1d6cc4}
+  .filters{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .filters label{display:flex;flex-direction:column;gap:3px;color:var(--text2);font-size:11.5px}
+  .filters select,.filters input{border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:#fff;min-width:120px}
+  main{padding:18px 24px 40px;max-width:1400px;margin:0 auto}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .kpi .lbl{color:var(--text2);font-size:11.5px}
+  .kpi .val{font-size:26px;font-weight:600;margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .val small{font-size:13px;font-weight:400;color:var(--text2);margin-left:3px}
+  .kpi .hint{color:var(--muted);font-size:11px;margin-top:3px}
+  section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:18px}
+  section h2{font-size:15px;margin:0 0 2px;font-weight:600}
+  section .desc{color:var(--text2);font-size:12px;margin:0 0 12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:1000px){.grid2{grid-template-columns:1fr}}
+  h3{font-size:12.5px;margin:10px 0 6px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+  .chart{position:relative;width:100%}
+  .chart svg{display:block;width:100%;height:auto;overflow:visible}
+  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--text2);margin:2px 0 4px}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+  .tip{position:absolute;pointer-events:none;background:#fff;border:1px solid var(--border);border-radius:6px;padding:6px 9px;font-size:11.5px;box-shadow:0 2px 8px rgba(0,0,0,.08);white-space:nowrap;display:none;z-index:5}
+  .tip b{display:block;margin-bottom:2px}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  th,td{padding:5px 8px;border-bottom:1px solid var(--grid);text-align:right;white-space:nowrap}
+  th{font-size:11px;color:var(--text2);font-weight:600;background:#fafaf8;position:sticky;top:0;cursor:pointer;user-select:none}
+  th:first-child,td:first-child{text-align:left;white-space:normal}
+  td.l{text-align:left}
+  .tbl{max-height:380px;overflow:auto;border:1px solid var(--grid);border-radius:6px}
+  .bar{display:inline-block;height:8px;background:var(--s1);border-radius:0 4px 4px 0;vertical-align:middle;margin-right:6px;opacity:.85}
+  .pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px}
+  .pill.bad{background:#fde8e8;color:var(--bad)} .pill.warn{background:#fff4dc;color:var(--warn)} .pill.good{background:#e5f4e7;color:var(--good)}
+  .status{font-size:12px;color:var(--text2)}
+  .status.err{color:var(--bad)}
+  .cfg{display:none;background:#fffbe9;border-bottom:1px solid #f1e2a8;padding:10px 24px;gap:10px;align-items:center;flex-wrap:wrap}
+  .cfg.open{display:flex}
+  .cfg input{border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:320px}
+  .note{font-size:11.5px;color:var(--muted);margin-top:8px}
+  .print-only{display:none}
+  .empty{color:var(--muted);padding:20px;text-align:center}
+
+  @page{size:A4 landscape;margin:10mm}
+  @media print{
+    body{background:#fff;font-size:10.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    header .actions,.filters,.cfg,.no-print{display:none!important}
+    .print-only{display:block}
+    header{padding:0 0 8px;border:none}
+    main{padding:0;max-width:none}
+    .kpis{grid-template-columns:repeat(6,1fr);gap:6px}
+    .kpi{break-inside:avoid;border-color:#ccc;padding:8px 10px}
+    section{border-color:#ccc;padding:10px 12px}
+    .chart,.grid2>div,h3{break-inside:avoid}
+    h3{break-after:avoid}
+    tr{break-inside:avoid}
+    #tbCli tbody tr:nth-child(n+21),#tbFinCli tbody tr:nth-child(n+21),#tbForn tbody tr:nth-child(n+21){display:none}
+    .grid2{grid-template-columns:1fr 1fr!important}
+    section.pb{break-before:page}
+    .tbl{max-height:none;overflow:visible;border:none}
+    th{position:static}
+    .kpi .val{font-size:20px}
+    .tip{display:none!important}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Prazos Médios — Vendas, Financeiro e Compras</h1>
+    <div class="sub" id="subtitle">Carregue os dados para começar</div>
+    <div class="sub print-only" id="printFilters"></div>
+  </div>
+  <div class="actions">
+    <span class="status" id="status"></span>
+    <button class="primary" id="btnLoad">Atualizar dados</button>
+    <button id="btnDemo">Dados de exemplo</button>
+    <button id="btnCfg">Configurar</button>
+    <button id="btnPrint">Imprimir / PDF</button>
+  </div>
+</header>
+
+<div class="cfg" id="cfg">
+  <label>Endereço base do n8n: <input id="cfgBase" placeholder="http://localhost:5678/webhook"></label>
+  <label>Dados a partir de: <input id="cfgInicio" type="date"></label>
+  <button id="cfgSave">Salvar</button>
+  <span class="note">Webhooks usados: /prazo-vendas, /prazo-financeiro, /prazo-compras (parâmetro ?inicio=AAAA-MM-DD)</span>
+</div>
+
+<div class="filters">
+  <label>Mês inicial <input type="month" id="fDe"></label>
+  <label>Mês final <input type="month" id="fAte"></label>
+  <label>Representante <select id="fRep"><option value="">Todos</option></select></label>
+  <label>UF <select id="fUf"><option value="">Todas</option></select></label>
+  <label>Tipo de título (financeiro) <select id="fTipo"><option value="">Todos</option></select></label>
+  <label>Ignorar CFOP (vendas) <input id="fCfop" placeholder="ex.: 5949, 6949" style="min-width:150px"></label>
+</div>
+
+<main>
+  <div class="kpis" id="kpis"></div>
+
+  <section>
+    <h2>1. Prazo médio de vendas (PMV)</h2>
+    <p class="desc">Prazo médio da condição de pagamento de cada nota fiscal (média dos dias das parcelas em FAPRAZOP), ponderado pelo valor da nota.</p>
+    <div class="grid2">
+      <div><h3>Evolução mensal (dias, ponderado por valor)</h3><div class="chart" id="chVendas"></div></div>
+      <div><h3>Por condição de pagamento</h3><div class="tbl" id="tbCond"></div></div>
+    </div>
+    <div class="grid2">
+      <div><h3>Por representante</h3><div class="tbl" id="tbRep"></div></div>
+      <div><h3>Por UF</h3><div class="tbl" id="tbUf"></div></div>
+    </div>
+    <h3>Clientes por valor faturado — clique no cabeçalho para ordenar</h3>
+    <div class="tbl" id="tbCli"></div><div class="note print-only">Impressão mostra os 20 primeiros da ordenação atual.</div>
+  </section>
+
+  <section class="pb">
+    <h2>2. Prazo financeiro (duplicatas a receber)</h2>
+    <p class="desc">Prazo concedido = emissão → vencimento original · Prazo efetivo = emissão → liquidação · Atraso = liquidação − vencimento prorrogado. Parcelas vencidas em aberto contam até hoje; a vencer, até o vencimento. Todos ponderados pelo valor da parcela.</p>
+    <div class="grid2">
+      <div><h3>Prazo concedido x efetivo por mês de emissão</h3><div class="chart" id="chFin"></div></div>
+      <div><h3>Carteira em aberto por faixa</h3><div class="tbl" id="tbAging"></div>
+        <h3>Por portador</h3><div class="tbl" id="tbPort"></div></div>
+    </div>
+    <h3>Clientes — prazo efetivo e atraso médio</h3>
+    <div class="tbl" id="tbFinCli"></div>
+  </section>
+
+  <section class="pb">
+    <h2>3. Prazo médio de compras (PMP)</h2>
+    <p class="desc">Prazo de cada título a pagar (data → vencimento), fornecedores da divisão FO, portadores Z90 e A01, ponderado pelo valor.</p>
+    <div class="grid2">
+      <div><h3>Evolução mensal (dias, ponderado por valor)</h3><div class="chart" id="chCompras"></div></div>
+      <div><h3>Por fornecedor</h3><div class="tbl" id="tbForn"></div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4. Comparativo: prazo de recebimento x prazo de pagamento</h2>
+    <p class="desc">Diferença positiva = a empresa financia o cliente por mais tempo do que é financiada pelo fornecedor (necessidade de capital de giro).</p>
+    <div class="grid2">
+      <div><h3>Prazo efetivo de recebimento x PMP (dias)</h3><div class="chart" id="chCiclo"></div></div>
+      <div><h3>Resumo mensal</h3><div class="tbl" id="tbCiclo"></div></div>
+    </div>
+  </section>
+  <p class="note" id="footnote"></p>
+</main>
+
+<script>
+/* ========= Config ========= */
+const LS = k => { try { return localStorage.getItem('pm_'+k); } catch(e){ return null; } };
+const LSset = (k,v) => { try { localStorage.setItem('pm_'+k,v); } catch(e){} };
+const twoYearsAgo = (()=>{ const d=new Date(); d.setMonth(d.getMonth()-24); d.setDate(1); return d.toISOString().slice(0,10); })();
+let CFG = { base: LS('base') || 'http://localhost:5678/webhook', inicio: LS('inicio') || twoYearsAgo };
+
+const RAW = { vendas:[], fin:[], compras:[] };
+
+/* ========= Helpers ========= */
+const $ = id => document.getElementById(id);
+const num = v => { if (v==null || v==='') return 0; if (typeof v==='number') return v; const s=String(v).trim(); const n = s.includes(',') ? parseFloat(s.replace(/\./g,'').replace(',','.')) : parseFloat(s); return isNaN(n)?0:n; };
+const numOrNull = v => (v==null || v==='') ? null : num(v);
+const toDate = v => { if(!v) return null; const s=String(v).slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null; if (+s.slice(0,4) < 1990) return null; return s; };
+const days = (a,b) => Math.round((Date.parse(b)-Date.parse(a))/86400000);
+const ym = d => d ? d.slice(0,7) : null;
+const fmtD = (v,dec=1) => v==null||isNaN(v) ? '–' : v.toLocaleString('pt-BR',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+const fmtR = v => v==null||isNaN(v) ? '–' : v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
+const fmtN = v => (v||0).toLocaleString('pt-BR');
+const fmtM = m => { const [y,mm]=m.split('-'); return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mm-1]+'/'+y.slice(2); };
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const todayStr = new Date().toISOString().slice(0,10);
+
+/* Weighted accumulator */
+function W(){ return {v:0, wd:0, n:0}; }
+function add(acc, valor, d){ acc.v+=valor; acc.wd+=valor*d; acc.n++; }
+const wavg = a => a.v>0 ? a.wd/a.v : null;
+function group(rows, keyFn, valFn, dFn){
+  const m = new Map();
+  for(const r of rows){ const k=keyFn(r); if(k==null) continue; const d=dFn(r); if(d==null) continue; if(!m.has(k)) m.set(k,W()); add(m.get(k), valFn(r), d); }
+  return m;
+}
+
+/* ========= Normalização ========= */
+function normVendas(rows){
+  const seen = new Set(), out=[];
+  for(const r of rows){
+    const key = (r.Serie||'')+'|'+r.Nf;
+    if(seen.has(key)) continue; seen.add(key);
+    const data = toDate(r.Data);
+    if(!data) continue;
+    const pm = numOrNull(r.PrazoMedio);
+    out.push({ nf:r.Nf, data, mes:ym(data), valor:num(r.Valor), cliente:(r.Nome||'').trim(), cod:r.Codigo, central:r.Central,
+      rep:(r.Representante||'(sem repres.)').trim(), uf:(r.Uf||'').trim()||'–', cond:r.Cd_condicao_pag,
+      condDesc:(r.Condicao||'').trim(), parcelas:num(r.Parcelas), prazo: pm==null?0:pm, semPrazo: pm==null, cfop:String(r.CFOP??'').trim() });
+  }
+  return out;
+}
+function normFin(rows){
+  const out=[];
+  for(const r of rows){
+    const em = toDate(r.Emissao), vo = toDate(r.VctoOrig)||toDate(r.Prorrogado), pr = toDate(r.Prorrogado)||vo, lq = toDate(r.Liquidacao);
+    if(!em || !vo) continue;
+    out.push({ nf:r.Nf, parc:r.Parcela, tipo:String(r.Cd_tipo||'').trim().toUpperCase(), port:(r.Cd_portador||'–').trim(),
+      cliente:(r.Cliente||r.Cd_empresa||'').toString().trim(), valor:num(r.Valor), em, mes:ym(em), vo, pr, lq,
+      concedido: days(em,vo), prorrog: days(vo,pr),
+      /* Efetivo: pagas = até a liquidação; vencidas em aberto = até hoje; a vencer = até o vencimento (supõe pagamento em dia) */
+      efetivo: lq ? days(em,lq) : (pr < todayStr ? days(em,todayStr) : days(em,pr)),
+      atraso: lq ? days(pr,lq) : (pr < todayStr ? days(pr,todayStr) : null) });
+  }
+  return out;
+}
+function normCompras(rows){
+  const out=[];
+  for(const r of rows){
+    const d = toDate(r.Data), v = toDate(r.Dt_vencimento);
+    if(!d || !v) continue;
+    const prazo = r.Prazo!=null && r.Prazo!=='' ? num(r.Prazo) : days(d,v);
+    out.push({ forn:(r.Nome_completo||r.Cd_empresa||'').toString().trim(), nf:r.Nf, data:d, mes:ym(d), valor:num(r.Valor), prazo, port:(r.Cd_portador||'').trim() });
+  }
+  return out;
+}
+
+/* ========= Carga ========= */
+async function fetchJson(path){
+  const url = CFG.base.replace(/\/$/,'') + '/' + path + '?inicio=' + encodeURIComponent(CFG.inicio);
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(path+': HTTP '+r.status);
+  const j = await r.json();
+  return Array.isArray(j) ? j : (j.data || j.rows || []);
+}
+async function load(){
+  setStatus('Carregando…');
+  try{
+    const [v,f,c] = await Promise.all([fetchJson('prazo-vendas'), fetchJson('prazo-financeiro'), fetchJson('prazo-compras')]);
+    setData(v,f,c, 'Dados do n8n · atualizado em '+new Date().toLocaleString('pt-BR'));
+    setStatus('');
+  }catch(e){
+    setStatus('Falha ao carregar ('+e.message+'). Verifique se o n8n está rodando e os fluxos ativos.', true);
+  }
+}
+function setStatus(t, err){ const s=$('status'); s.textContent=t; s.className='status'+(err?' err':''); }
+
+function setData(v,f,c,label){
+  RAW.vendas = normVendas(v); RAW.fin = normFin(f); RAW.compras = normCompras(c);
+  $('subtitle').textContent = label;
+  const months = [...new Set([...RAW.vendas.map(r=>r.mes), ...RAW.fin.map(r=>r.mes), ...RAW.compras.map(r=>r.mes)])].filter(Boolean).sort();
+  const last = months.filter(m=>m<=todayStr.slice(0,7)).pop() || months[months.length-1];
+  if(months.length){
+    const i = Math.max(0, months.indexOf(last)-11);
+    $('fDe').value = months[i]; $('fAte').value = last;
+  }
+  fillSelect('fRep', [...new Set(RAW.vendas.map(r=>r.rep))].sort(), 'Todos');
+  fillSelect('fUf', [...new Set(RAW.vendas.map(r=>r.uf))].sort(), 'Todas');
+  fillSelect('fTipo', [...new Set(RAW.fin.map(r=>r.tipo))].sort(), 'Todos');
+  render();
+}
+function fillSelect(id, vals, all){
+  const s=$(id), cur=s.value;
+  s.innerHTML = `<option value="">${all}</option>` + vals.map(v=>`<option>${esc(v)}</option>`).join('');
+  if(vals.includes(cur)) s.value=cur;
+}
+
+/* ========= Render ========= */
+function monthsBetween(a,b){ const out=[]; if(!a||!b) return out; let [y,m]=a.split('-').map(Number); const [y2,m2]=b.split('-').map(Number); while(y<y2||(y===y2&&m<=m2)){ out.push(y+'-'+String(m).padStart(2,'0')); m++; if(m>12){m=1;y++;} } return out; }
+
+function render(){
+  const de=$('fDe').value, ate=$('fAte').value, rep=$('fRep').value, uf=$('fUf').value, tipo=$('fTipo').value;
+  const cfops = $('fCfop').value.split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
+  const inP = m => (!de || m>=de) && (!ate || m<=ate);
+  const months = monthsBetween(de,ate);
+
+  const V = RAW.vendas.filter(r=>inP(r.mes) && (!rep||r.rep===rep) && (!uf||r.uf===uf) && !cfops.includes(r.cfop));
+  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||r.tipo===tipo));
+  const C = RAW.compras.filter(r=>inP(r.mes));
+
+  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (rep?` · Representante: ${rep}`:'') + (uf?` · UF: ${uf}`:'') + (tipo?` · Tipo: ${tipo}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
+
+  /* KPIs */
+  const kV=W(); V.forEach(r=>add(kV,r.valor,r.prazo));
+  const kFc=W(); F.forEach(r=>add(kFc,r.valor,r.concedido));
+  const Fl = F.filter(r=>r.efetivo!=null);
+  const Fa = F.filter(r=>r.atraso!=null);
+  const kFe=W(); Fl.forEach(r=>add(kFe,r.valor,r.efetivo));
+  const kAt=W(); Fa.forEach(r=>add(kAt,r.valor,r.atraso));
+  const kC=W(); C.forEach(r=>add(kC,r.valor,r.prazo));
+  const pmr = wavg(kFe) ?? wavg(kFc), pmp = wavg(kC);
+  const gap = pmr!=null && pmp!=null ? pmr-pmp : null;
+  const semPrazo = V.filter(r=>r.semPrazo).length;
+  const atrasoPct = Fa.length ? Fa.filter(r=>r.atraso>0).reduce((s,r)=>s+r.valor,0) / Fa.reduce((s,r)=>s+r.valor,0) * 100 : null;
+  $('kpis').innerHTML = [
+    kpi('PMV — prazo médio de vendas', wavg(kV), 'dias', `${fmtN(V.length)} NFs · ${fmtR(kV.v)}`+(semPrazo?` · ${semPrazo} sem prazo cadastrado`:'')),
+    kpi('Prazo concedido (duplicatas)', wavg(kFc), 'dias', `${fmtN(F.length)} parcelas · ${fmtR(kFc.v)}`),
+    kpi('Prazo efetivo de recebimento', wavg(kFe), 'dias', `${fmtN(F.filter(r=>r.lq).length)} liquidadas · em aberto estimadas`),
+    kpi('Atraso médio no pagamento', wavg(kAt), 'dias', atrasoPct!=null?`${fmtD(atrasoPct)}% do valor vencido pago/aberto com atraso`:''),
+    kpi('PMP — prazo médio de compras', pmp, 'dias', `${fmtN(C.length)} títulos · ${fmtR(kC.v)}`),
+    kpi('Diferença recebimento − pagamento', gap, 'dias', gap==null?'':(gap>0?'empresa financia o cliente':'fornecedor financia a operação'))
+  ].join('');
+
+  /* 1. Vendas */
+  const vm = group(V, r=>r.mes, r=>r.valor, r=>r.prazo);
+  lineChart('chVendas', months, [{name:'PMV', color:'var(--s1)', vals: months.map(m=>vm.has(m)?wavg(vm.get(m)):null), extra: m=>vm.has(m)?`${fmtR(vm.get(m).v)} · ${vm.get(m).n} NFs`:''}]);
+
+  const condM = new Map();
+  for(const r of V){ const k=r.cond; if(!condM.has(k)) condM.set(k,{desc:r.condDesc, prazo:r.prazo, parc:r.parcelas, sem:r.semPrazo, v:0, n:0}); const o=condM.get(k); o.v+=r.valor; o.n++; }
+  const totV = kV.v||1;
+  table('tbCond', ['Condição','Descrição','Parcelas','Prazo médio','NFs','Valor','% valor'],
+    [...condM.entries()].sort((a,b)=>b[1].v-a[1].v).map(([k,o])=>[k, o.desc, o.parc||'–', o.sem?'<span class="pill warn">sem prazo</span>':fmtD(o.prazo,0), fmtN(o.n), fmtR(o.v), barCell(o.v/totV*100)]),
+    {raw:[3,6]});
+
+  table('tbRep', ['Representante','NFs','Valor','PMV (dias)'],
+    sortedGroup(group(V,r=>r.rep,r=>r.valor,r=>r.prazo)).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a))]));
+  table('tbUf', ['UF','NFs','Valor','PMV (dias)'],
+    sortedGroup(group(V,r=>r.uf,r=>r.valor,r=>r.prazo)).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a))]));
+  const cliM = group(V, r=>r.cliente, r=>r.valor, r=>r.prazo);
+  table('tbCli', ['Cliente','NFs','Valor','PMV (dias)','vs. média'],
+    sortedGroup(cliM).slice(0,50).map(([k,a])=>{ const d=wavg(a)-(wavg(kV)||0); return [k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), deltaPill(d)]; }), {raw:[4]});
+
+  /* 2. Financeiro */
+  const fmC = group(F, r=>r.mes, r=>r.valor, r=>r.concedido);
+  const fmE = group(Fl, r=>r.mes, r=>r.valor, r=>r.efetivo);
+  lineChart('chFin', months, [
+    {name:'Prazo concedido', color:'var(--s1)', vals: months.map(m=>fmC.has(m)?wavg(fmC.get(m)):null)},
+    {name:'Prazo efetivo', color:'var(--s2)', vals: months.map(m=>fmE.has(m)?wavg(fmE.get(m)):null)}
+  ]);
+  const abertos = RAW.fin.filter(r=>!r.lq && (!tipo||r.tipo===tipo));
+  const faixas = [['A vencer',-1e9,0],['Vencido 1–30 dias',1,30],['Vencido 31–60',31,60],['Vencido 61–90',61,90],['Vencido > 90',91,1e9]];
+  const totAb = abertos.reduce((s,r)=>s+r.valor,0)||1;
+  table('tbAging', ['Faixa','Parcelas','Valor','% carteira'], faixas.map(([n,a,b])=>{
+    const rs = abertos.filter(r=>{ const d=days(r.pr,todayStr); return d>=a && d<=b; });
+    const v = rs.reduce((s,r)=>s+r.valor,0);
+    return [n, fmtN(rs.length), fmtR(v), barCell(v/totAb*100)];
+  }), {raw:[3], nosort:true});
+  const portC = group(F,r=>r.port,r=>r.valor,r=>r.concedido), portE = group(Fl,r=>r.port,r=>r.valor,r=>r.efetivo), portA = group(Fa,r=>r.port,r=>r.valor,r=>r.atraso);
+  table('tbPort', ['Portador','Parcelas','Valor','Concedido','Efetivo','Atraso'],
+    sortedGroup(portC).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), fmtD(portE.has(k)?wavg(portE.get(k)):null), fmtD(portA.has(k)?wavg(portA.get(k)):null)]));
+  const fcC = group(F,r=>r.cliente,r=>r.valor,r=>r.concedido), fcE = group(Fl,r=>r.cliente,r=>r.valor,r=>r.efetivo), fcA = group(Fa,r=>r.cliente,r=>r.valor,r=>r.atraso);
+  table('tbFinCli', ['Cliente','Parcelas','Valor','Concedido','Efetivo','Atraso médio','Em aberto vencido'],
+    sortedGroup(fcC).slice(0,60).map(([k,a])=>{
+      const at = fcA.has(k)?wavg(fcA.get(k)):null;
+      const venc = abertos.filter(r=>r.cliente===k && r.pr<todayStr).reduce((s,r)=>s+r.valor,0);
+      return [k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), fmtD(fcE.has(k)?wavg(fcE.get(k)):null), atrasoPill(at), venc?fmtR(venc):'–'];
+    }), {raw:[5]});
+
+  /* 3. Compras */
+  const cm = group(C, r=>r.mes, r=>r.valor, r=>r.prazo);
+  lineChart('chCompras', months, [{name:'PMP', color:'var(--s1)', vals: months.map(m=>cm.has(m)?wavg(cm.get(m)):null), extra: m=>cm.has(m)?`${fmtR(cm.get(m).v)} · ${cm.get(m).n} títulos`:''}]);
+  const totC = kC.v||1;
+  table('tbForn', ['Fornecedor','Títulos','Valor','% valor','PMP (dias)'],
+    sortedGroup(group(C,r=>r.forn,r=>r.valor,r=>r.prazo)).slice(0,60).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), barCell(a.v/totC*100), fmtD(wavg(a))]), {raw:[3]});
+
+  /* 4. Comparativo */
+  const rec = months.map(m=>fmE.has(m)?wavg(fmE.get(m)):null);
+  const pag = months.map(m=>cm.has(m)?wavg(cm.get(m)):null);
+  lineChart('chCiclo', months, [
+    {name:'Prazo de recebimento', color:'var(--s1)', vals: rec},
+    {name:'PMP compras', color:'var(--s2)', vals: pag}
+  ]);
+  table('tbCiclo', ['Mês','PMV vendas','Recebimento','PMP compras','Diferença'],
+    months.map((m,i)=>{ const g = rec[i]!=null&&pag[i]!=null ? rec[i]-pag[i] : null; return [fmtM(m), fmtD(vm.has(m)?wavg(vm.get(m)):null), fmtD(rec[i]), fmtD(pag[i]), g==null?'–':deltaPill(g)]; }),
+    {raw:[4], nosort:true});
+
+  $('footnote').textContent = 'Prazo efetivo: parcelas pagas contam até a liquidação, vencidas em aberto até hoje e a vencer até o vencimento (evita que os meses recentes pareçam mais curtos só porque as parcelas longas ainda não venceram). Condições sem parcelas cadastradas em FAPRAZOP entram como 0 dia (à vista) no PMV.';
+}
+
+function kpi(lbl,v,unit,hint){ return `<div class="kpi"><div class="lbl">${lbl}</div><div class="val">${v==null?'–':fmtD(v)}<small>${v==null?'':unit}</small></div><div class="hint">${esc(hint)}</div></div>`; }
+function sortedGroup(m){ return [...m.entries()].sort((a,b)=>b[1].v-a[1].v); }
+function barCell(p){ return `<span class="bar" style="width:${Math.max(1,Math.min(60,p*0.6))}px"></span>${fmtD(p)}%`; }
+function deltaPill(d){ if(d==null||isNaN(d)) return '–'; const c = d>5?'bad':(d<-5?'good':'warn'); return `<span class="pill ${c}">${d>0?'+':''}${fmtD(d)}</span>`; }
+function atrasoPill(d){ if(d==null) return '–'; const c = d>15?'bad':(d>3?'warn':'good'); return `<span class="pill ${c}">${fmtD(d)}</span>`; }
+
+/* Tabela com ordenação por clique */
+function table(id, heads, rows, opt={}){
+  const el=$(id);
+  if(!rows.length){ el.innerHTML='<div class="empty">Sem dados no período</div>'; return; }
+  const raw = new Set(opt.raw||[]);
+  const cell = (v,i) => raw.has(i) ? v : esc(v);
+  el.innerHTML = `<table><thead><tr>${heads.map((h,i)=>`<th data-i="${i}">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((v,i)=>`<td>${cell(v,i)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  if(opt.nosort) return;
+  el.querySelectorAll('th').forEach(th=>th.onclick=()=>{
+    const i=+th.dataset.i, tb=el.querySelector('tbody'), trs=[...tb.rows];
+    const dir = th.dataset.dir==='d'?'a':'d'; el.querySelectorAll('th').forEach(t=>delete t.dataset.dir); th.dataset.dir=dir;
+    const key = tr => { const t=tr.cells[i].textContent.replace(/[R$\s%+]/g,'').replace(/\./g,'').replace(',','.'); const n=parseFloat(t); return isNaN(n)?tr.cells[i].textContent.toLowerCase():n; };
+    trs.sort((a,b)=>{ const x=key(a),y=key(b); const c = typeof x==='number'&&typeof y==='number' ? x-y : String(x).localeCompare(String(y)); return dir==='a'?c:-c; });
+    trs.forEach(tr=>tb.appendChild(tr));
+  });
+}
+
+/* Gráfico de linhas em SVG (eixo único, em dias) com crosshair + tooltip */
+function lineChart(id, months, series){
+  const el=$(id);
+  const all = series.flatMap(s=>s.vals).filter(v=>v!=null);
+  if(!months.length || !all.length){ el.innerHTML='<div class="empty">Sem dados no período</div>'; return; }
+  const W_=640, H=250, ml=38, mr=14, mt=12, mb=28, iw=W_-ml-mr, ih=H-mt-mb;
+  let max = Math.max(...all), min = Math.min(0, ...all);
+  const step = niceStep((max-min)/4); max = Math.ceil(max/step)*step; min = Math.floor(min/step)*step; if(max===min) max=min+step;
+  const x = i => ml + (months.length===1 ? iw/2 : i*iw/(months.length-1));
+  const y = v => mt + ih - (v-min)/(max-min)*ih;
+  let g='';
+  for(let v=min; v<=max+1e-9; v+=step){ g+=`<line x1="${ml}" x2="${W_-mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end" font-size="10.5" fill="var(--text2)">${fmtD(v,0)}</text>`; }
+  const every = Math.ceil(months.length/12);
+  months.forEach((m,i)=>{ if(i%every===0||i===months.length-1) g+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="var(--text2)">${fmtM(m)}</text>`; });
+  let lines='';
+  series.forEach(s=>{
+    let d='', pen=false;
+    s.vals.forEach((v,i)=>{ if(v==null){pen=false;return;} d+=(pen?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1); pen=true; });
+    lines+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.vals.forEach((v,i)=>{ if(v!=null) lines+=`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}" stroke="#fff" stroke-width="1.5"/>`; });
+    const li = s.vals.map((v,i)=>v!=null?i:-1).filter(i=>i>=0).pop();
+    if(li!=null && series.length===1) lines+=`<text x="${x(li)}" y="${y(s.vals[li])-8}" text-anchor="end" font-size="11" font-weight="600" fill="var(--text)">${fmtD(s.vals[li])}</text>`;
+  });
+  const legend = series.length>1 ? `<div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}</div>` : '';
+  el.innerHTML = legend + `<svg viewBox="0 0 ${W_} ${H}" role="img" aria-label="${series.map(s=>s.name).join(', ')} por mês">${g}<line class="xh" x1="0" x2="0" y1="${mt}" y2="${mt+ih}" stroke="var(--text2)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>${lines}<rect x="${ml}" y="${mt}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip"></div>`;
+  const svg=el.querySelector('svg'), tip=el.querySelector('.tip'), xh=el.querySelector('.xh');
+  svg.addEventListener('mousemove', e=>{
+    const r=svg.getBoundingClientRect(), sx=(e.clientX-r.left)*W_/r.width;
+    const i = months.length===1?0:Math.max(0,Math.min(months.length-1, Math.round((sx-ml)/iw*(months.length-1))));
+    xh.setAttribute('x1',x(i)); xh.setAttribute('x2',x(i)); xh.setAttribute('visibility','visible');
+    tip.innerHTML = `<b>${fmtM(months[i])}</b>` + series.map(s=>`<div><span style="color:${s.color}">●</span> ${s.name}: ${fmtD(s.vals[i])} dias${s.extra&&s.extra(months[i])?'<br><span style="color:var(--text2)">'+s.extra(months[i])+'</span>':''}</div>`).join('');
+    tip.style.display='block';
+    const px = x(i)*r.width/W_; tip.style.left = (px > r.width*0.6 ? px - tip.offsetWidth - 12 : px + 12) + 'px'; tip.style.top = (e.clientY-r.top-10) + 'px';
+  });
+  svg.addEventListener('mouseleave', ()=>{ tip.style.display='none'; xh.setAttribute('visibility','hidden'); });
+}
+function niceStep(raw){ if(raw<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(raw))); const f=raw/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
+
+/* ========= Dados de exemplo ========= */
+function demo(){
+  let seed=7; const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
+  const pick=a=>a[Math.floor(rnd()*a.length)];
+  const reps=['ANDRE','BETO SUL','CARLA','DIEGO','FERNANDA','GUSTAVO'], ufs=['SC','PR','RS','SP','MG','GO'];
+  const conds=[[1,'À VISTA',1,0],[10,'30 DIAS',1,30],[12,'30/60',2,45],[14,'30/60/90',3,60],[16,'28/56/84/112',4,70],[20,'60/90/120',3,90],[22,'ANTECIPADO',null,null]];
+  const clientes=Array.from({length:40},(_,i)=>'CLIENTE EXEMPLO '+String(i+1).padStart(2,'0')+' LTDA');
+  const forns=Array.from({length:15},(_,i)=>'FORNECEDOR '+String.fromCharCode(65+i)+' S.A.');
+  const ports=['A01','BB1','ITA','SIC','CXA'];
+  const vendas=[], fin=[], compras=[];
+  const start=new Date(); start.setMonth(start.getMonth()-18); start.setDate(1);
+  let nf=50000;
+  for(let d=new Date(start); d<=new Date(); d.setDate(d.getDate()+1)){
+    const ds=d.toISOString().slice(0,10), drift=(d-start)/86400000/30;
+    for(let k=0;k<4;k++){
+      const c = rnd()<0.08+drift*0.004 ? conds[5] : pick(conds);
+      const v = Math.round(2000+rnd()*25000), cli=pick(clientes);
+      nf++;
+      vendas.push({Nf:nf, Codigo:clientes.indexOf(cli)+100, Nome:cli, Central:clientes.indexOf(cli)+100, Uf:pick(ufs), Representante:pick(reps), Valor:v, Data:ds, Cd_condicao_pag:c[0], Condicao:c[1], Parcelas:c[2], PrazoMedio:c[3], CFOP:rnd()<0.05?'5949':'5101'});
+      const nparc=c[2]||1, prazos = c[3]==null?[0]:Array.from({length:nparc},(_,j)=>c[3]-(nparc-1)*15+j*30);
+      prazos.forEach((p,j)=>{
+        const vo=new Date(d); vo.setDate(vo.getDate()+Math.max(0,p));
+        const pr=new Date(vo); if(rnd()<0.1) pr.setDate(pr.getDate()+Math.round(rnd()*20));
+        const lq=new Date(pr); lq.setDate(lq.getDate()+Math.round((rnd()<0.2?rnd()*40:rnd()*4)-1));
+        const pago = lq < new Date() && rnd()>0.03;
+        fin.push({Serie:'1', Nf:nf, Parcela:String(j+1), Cd_tipo:'R', Cd_portador:pick(ports), Cd_empresa:100, Cliente:cli, Valor:Math.round(v/nparc), Emissao:ds, VctoOrig:vo.toISOString().slice(0,10), Prorrogado:pr.toISOString().slice(0,10), Liquidacao: pago?lq.toISOString().slice(0,10):null});
+      });
+    }
+    if(rnd()<0.6){ const p=pick([28,30,45,56,60,90]) + Math.round(drift*0.5); const vt=new Date(d); vt.setDate(vt.getDate()+p);
+      compras.push({Cd_empresa:1, Nome_completo:pick(forns), Nf:nf, Cd_portador:pick(['Z90','A01']), Dt_vencimento:vt.toISOString().slice(0,10), Valor:Math.round(3000+rnd()*40000), Data:ds, Prazo:p}); }
+  }
+  setStatus(''); setData(vendas, fin, compras, 'DADOS DE EXEMPLO (fictícios) — clique em "Atualizar dados" para usar o n8n');
+}
+
+/* ========= Eventos ========= */
+['fDe','fAte','fRep','fUf','fTipo'].forEach(id=>$(id).addEventListener('change',render));
+$('fCfop').addEventListener('input',()=>{ clearTimeout(window._t); window._t=setTimeout(render,300); });
+$('btnLoad').onclick=load;
+$('btnDemo').onclick=demo;
+$('btnPrint').onclick=()=>window.print();
+$('btnCfg').onclick=()=>{ $('cfg').classList.toggle('open'); $('cfgBase').value=CFG.base; $('cfgInicio').value=CFG.inicio; };
+$('cfgSave').onclick=()=>{ CFG.base=$('cfgBase').value.trim()||CFG.base; CFG.inicio=$('cfgInicio').value||CFG.inicio; LSset('base',CFG.base); LSset('inicio',CFG.inicio); $('cfg').classList.remove('open'); load(); };
+
+load();
+</script>
+</body>
+</html>
