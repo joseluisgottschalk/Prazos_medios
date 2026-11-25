@@ -25,6 +25,30 @@
   .filters{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--border)}
   .filters label{display:flex;flex-direction:column;gap:3px;color:var(--text2);font-size:11.5px}
   .filters select,.filters input{border:1px solid var(--border);border-radius:6px;padding:5px 8px;background:#fff;min-width:120px}
+  .ms{position:relative;min-width:170px}
+  .ms-btn{width:100%;text-align:left;border:1px solid var(--border);border-radius:6px;padding:5px 26px 5px 8px;background:#fff;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;position:relative}
+  .ms-btn::after{content:"▾";position:absolute;right:8px;color:var(--text2)}
+  .ms-pop{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:20;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.12);width:260px;padding:8px}
+  .ms.open .ms-pop{display:block}
+  .ms-pop input[type=search]{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 8px;margin-bottom:6px}
+  .ms-acts{display:flex;gap:6px;margin-bottom:6px}
+  .ms-acts button{padding:3px 8px;font-size:11.5px}
+  .ms-list{max-height:260px;overflow:auto}
+  .ms-list label{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:12.5px;padding:3px 4px;border-radius:4px;cursor:pointer}
+  .ms-list label:hover{background:#f3f3f1}
+  .filters .ms-list input{min-width:0;width:auto;margin:0;padding:0}
+  .ms-list label{justify-content:flex-start}
+  .tabs{display:flex;gap:4px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;background:none;padding:10px 14px;color:var(--text2);font-weight:500}
+  .tabs button.on{color:var(--text);border-bottom-color:var(--s1)}
+  .tab{display:none} .tab.on{display:block}
+  .hbars{display:flex;flex-direction:column;gap:4px}
+  .hb{display:grid;grid-template-columns:130px 1fr 110px;align-items:center;gap:8px;font-size:12px;position:relative}
+  .hb .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hb .trk{height:14px;position:relative}
+  .hb .fill{height:14px;background:var(--s1);border-radius:0 4px 4px 0;min-width:2px}
+  .hb .vl{text-align:right;font-variant-numeric:tabular-nums;color:var(--text2)}
+  .hb:hover .fill{background:#1d6cc4}
   main{padding:18px 24px 40px;max-width:1400px;margin:0 auto}
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:18px}
   .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
@@ -82,6 +106,8 @@
     th{position:static}
     .kpi .val{font-size:20px}
     .tip{display:none!important}
+    .tabs{display:none}
+    .hb{grid-template-columns:110px 1fr 100px}
   }
 </style>
 </head>
@@ -111,13 +137,21 @@
 <div class="filters">
   <label>Mês inicial <input type="month" id="fDe"></label>
   <label>Mês final <input type="month" id="fAte"></label>
-  <label>Representante <select id="fRep"><option value="">Todos</option></select></label>
-  <label>UF <select id="fUf"><option value="">Todas</option></select></label>
+  <label>País <div class="ms" id="fPais"></div></label>
+  <label id="wReg" style="display:none">Regional <div class="ms" id="fReg"></div></label>
+  <label>Representante <div class="ms" id="fRep"></div></label>
+  <label>UF <div class="ms" id="fUf"></div></label>
   <label>Tipo de título (financeiro) <select id="fTipo"><option value="">Todos</option></select></label>
   <label>Ignorar CFOP (vendas) <input id="fCfop" placeholder="ex.: 5949, 6949" style="min-width:150px"></label>
 </div>
 
+<nav class="tabs">
+  <button class="on" data-tab="tabPrazos">Prazos médios</button>
+  <button data-tab="tabBR">Vendas Brasil por UF</button>
+  <button data-tab="tabEX">Vendas por país (exceto Brasil)</button>
+</nav>
 <main>
+<div class="tab on" id="tabPrazos">
   <div class="kpis" id="kpis"></div>
 
   <section>
@@ -128,6 +162,7 @@
       <div><h3>Por condição de pagamento</h3><div class="tbl" id="tbCond"></div></div>
     </div>
     <div class="grid2">
+      <div id="wTbReg" style="display:none;grid-column:1/-1"><h3>Por regional</h3><div class="tbl" id="tbReg"></div></div>
       <div><h3>Por representante</h3><div class="tbl" id="tbRep"></div></div>
       <div><h3>Por UF</h3><div class="tbl" id="tbUf"></div></div>
     </div>
@@ -165,6 +200,34 @@
     </div>
   </section>
   <p class="note" id="footnote"></p>
+</div>
+
+<div class="tab" id="tabBR">
+  <div class="kpis" id="kpisBR"></div>
+  <section>
+    <h2>Vendas no Brasil por UF</h2>
+    <p class="desc">Notas fiscais com país Brasil (ou sem país informado). Respeita período, regional, representante, UF e CFOP ignorados.</p>
+    <div class="grid2">
+      <div><h3>Faturamento por UF</h3><div class="hbars" id="barsBR"></div></div>
+      <div><h3>Faturamento mensal (R$)</h3><div class="chart" id="chBR"></div><h3>PMV mensal (dias)</h3><div class="chart" id="chBRpmv"></div></div>
+    </div>
+    <h3>Detalhe por UF</h3><div class="tbl" id="tbBR"></div>
+  </section>
+</div>
+
+<div class="tab" id="tabEX">
+  <div class="kpis" id="kpisEX"></div>
+  <section>
+    <h2>Vendas por país — exceto Brasil</h2>
+    <p class="desc">Notas com país diferente de Brasil. Se houver países marcados no filtro País, mostra só esses. Respeita período, regional, representante e CFOP ignorados.</p>
+    <div class="grid2">
+      <div><h3>Faturamento por país</h3><div class="hbars" id="barsEX"></div></div>
+      <div><h3>Faturamento mensal (R$)</h3><div class="chart" id="chEX"></div><h3>PMV mensal (dias)</h3><div class="chart" id="chEXpmv"></div></div>
+    </div>
+    <h3>Detalhe por país</h3><div class="tbl" id="tbEX"></div>
+    <h3>Clientes no exterior</h3><div class="tbl" id="tbEXcli"></div>
+  </section>
+</div>
 </main>
 
 <script>
@@ -201,6 +264,8 @@ function group(rows, keyFn, valFn, dFn){
 }
 
 /* ========= Normalização ========= */
+function normPais(v){ const t=String(v??'').trim().toUpperCase(); const n=t.normalize('NFD').replace(/[\u0300-\u036f]/g,''); return (!t || n==='BRASIL' || n==='BRAZIL' || n==='BR') ? 'BRASIL' : t; }
+const isBR = r => r.pais==='BRASIL';
 function normVendas(rows){
   const seen = new Set(), out=[];
   for(const r of rows){
@@ -210,8 +275,8 @@ function normVendas(rows){
     if(!data) continue;
     const pm = numOrNull(r.PrazoMedio);
     out.push({ nf:r.Nf, data, mes:ym(data), valor:num(r.Valor), cliente:(r.Nome||'').trim(), cod:r.Codigo, central:r.Central,
-      rep:(r.Representante||'(sem repres.)').trim(), uf:(r.Uf||'').trim()||'–', cond:r.Cd_condicao_pag,
-      condDesc:(r.Condicao||'').trim(), parcelas:num(r.Parcelas), prazo: pm==null?0:pm, semPrazo: pm==null, cfop:String(r.CFOP??'').trim() });
+      rep:(r.Representante||'(sem repres.)').trim(), reg:(r.Regional==null?null:(String(r.Regional).trim()||'(sem regional)')), uf:(r.Uf||'').trim()||'–', cond:r.Cd_condicao_pag,
+      condDesc:(r.Condicao||'').trim(), parcelas:num(r.Parcelas), prazo: pm==null?0:pm, semPrazo: pm==null, cfop:String(r.CFOP??'').trim(), pais: normPais(r.Pais ?? r['País']) });
   }
   return out;
 }
@@ -269,8 +334,12 @@ function setData(v,f,c,label){
     const i = Math.max(0, months.indexOf(last)-11);
     $('fDe').value = months[i]; $('fAte').value = last;
   }
-  fillSelect('fRep', [...new Set(RAW.vendas.map(r=>r.rep))].sort(), 'Todos');
-  fillSelect('fUf', [...new Set(RAW.vendas.map(r=>r.uf))].sort(), 'Todas');
+  const regs = [...new Set(RAW.vendas.map(r=>r.reg).filter(v=>v!=null))].sort();
+  $('wReg').style.display = regs.length ? '' : 'none';
+  MS.reg.setOptions(regs);
+  MS.pais.setOptions([...new Set(RAW.vendas.map(r=>r.pais))].sort((a,b)=>a==='BRASIL'?-1:b==='BRASIL'?1:a.localeCompare(b)));
+  MS.rep.setOptions([...new Set(RAW.vendas.map(r=>r.rep))].sort());
+  MS.uf.setOptions([...new Set(RAW.vendas.map(r=>r.uf))].sort());
   fillSelect('fTipo', [...new Set(RAW.fin.map(r=>r.tipo))].sort(), 'Todos');
   render();
 }
@@ -284,16 +353,26 @@ function fillSelect(id, vals, all){
 function monthsBetween(a,b){ const out=[]; if(!a||!b) return out; let [y,m]=a.split('-').map(Number); const [y2,m2]=b.split('-').map(Number); while(y<y2||(y===y2&&m<=m2)){ out.push(y+'-'+String(m).padStart(2,'0')); m++; if(m>12){m=1;y++;} } return out; }
 
 function render(){
-  const de=$('fDe').value, ate=$('fAte').value, rep=$('fRep').value, uf=$('fUf').value, tipo=$('fTipo').value;
+  const de=$('fDe').value, ate=$('fAte').value, tipo=$('fTipo').value;
   const cfops = $('fCfop').value.split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
+  const pais = MS.pais.selected(), reg = MS.reg.selected(), rep = MS.rep.selected(), uf = MS.uf.selected();
+  /* cascata: representantes e UFs disponíveis conforme as regionais escolhidas */
+  const baseReg = RAW.vendas.filter(r=>!reg || reg.has(r.reg));
+  MS.rep.limit(new Set(baseReg.map(r=>r.rep)));
+  MS.uf.limit(new Set(baseReg.filter(r=>!rep || rep.has(r.rep)).map(r=>r.uf)));
   const inP = m => (!de || m>=de) && (!ate || m<=ate);
   const months = monthsBetween(de,ate);
 
-  const V = RAW.vendas.filter(r=>inP(r.mes) && (!rep||r.rep===rep) && (!uf||r.uf===uf) && !cfops.includes(r.cfop));
-  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||r.tipo===tipo));
+  const VB = RAW.vendas.filter(r=>inP(r.mes) && (!reg||reg.has(r.reg)) && (!rep||rep.has(r.rep)) && !cfops.includes(r.cfop)); /* base sem país/UF */
+  const V = VB.filter(r=>(!pais||pais.has(r.pais)) && (!uf||uf.has(r.uf)));
+  /* financeiro: país vem da nota fiscal de venda */
+  const nfPais = pais ? new Set(RAW.vendas.filter(r=>pais.has(r.pais)).map(r=>String(r.nf))) : null;
+  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||r.tipo===tipo) && (!nfPais||nfPais.has(String(r.nf))));
+  renderBR(VB.filter(r=>isBR(r) && (!uf||uf.has(r.uf))), months);
+  renderEX(VB.filter(r=>!isBR(r) && (!pais||pais.has(r.pais))), months);
   const C = RAW.compras.filter(r=>inP(r.mes));
 
-  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (rep?` · Representante: ${rep}`:'') + (uf?` · UF: ${uf}`:'') + (tipo?` · Tipo: ${tipo}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
+  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (pais?` · País: ${[...pais].join(', ')}`:'') + (reg?` · Regional: ${[...reg].join(', ')}`:'') + (rep?` · Representante: ${[...rep].join(', ')}`:'') + (uf?` · UF: ${[...uf].join(', ')}`:'') + (tipo?` · Tipo: ${tipo}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
 
   /* KPIs */
   const kV=W(); V.forEach(r=>add(kV,r.valor,r.prazo));
@@ -327,6 +406,10 @@ function render(){
     [...condM.entries()].sort((a,b)=>b[1].v-a[1].v).map(([k,o])=>[k, o.desc, o.parc||'–', o.sem?'<span class="pill warn">sem prazo</span>':fmtD(o.prazo,0), fmtN(o.n), fmtR(o.v), barCell(o.v/totV*100)]),
     {raw:[3,6]});
 
+  const hasReg = RAW.vendas.some(r=>r.reg!=null);
+  $('wTbReg').style.display = hasReg ? '' : 'none';
+  if(hasReg) table('tbReg', ['Regional','NFs','Valor','PMV (dias)','vs. média'],
+    sortedGroup(group(V,r=>r.reg,r=>r.valor,r=>r.prazo)).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), deltaPill(wavg(a)-(wavg(kV)||0))]), {raw:[4]});
   table('tbRep', ['Representante','NFs','Valor','PMV (dias)'],
     sortedGroup(group(V,r=>r.rep,r=>r.valor,r=>r.prazo)).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a))]));
   table('tbUf', ['UF','NFs','Valor','PMV (dias)'],
@@ -382,6 +465,41 @@ function render(){
   $('footnote').textContent = 'Prazo efetivo: parcelas pagas contam até a liquidação, vencidas em aberto até hoje e a vencer até o vencimento (evita que os meses recentes pareçam mais curtos só porque as parcelas longas ainda não venceram). Condições sem parcelas cadastradas em FAPRAZOP entram como 0 dia (à vista) no PMV.';
 }
 
+const fmtK = v => Math.abs(v)>=1e6 ? fmtD(v/1e6,1)+' mi' : Math.abs(v)>=1e3 ? fmtD(v/1e3,0)+' mil' : fmtD(v,0);
+const moneyOpts = { axis: fmtK, val: v=>fmtR(v), last: v=>'R$ '+fmtK(v), ml:52 };
+function kpiTxt(lbl,txt,hint){ return `<div class="kpi"><div class="lbl">${lbl}</div><div class="val">${txt}</div><div class="hint">${esc(hint||'')}</div></div>`; }
+function hbars(id, rows){ /* rows: [nome, valor, dica] */
+  const el=$(id); if(!rows.length){ el.innerHTML='<div class="empty">Sem dados no período</div>'; return; }
+  const mx=Math.max(...rows.map(r=>r[1]))||1;
+  el.innerHTML = rows.map(([n,v,t])=>`<div class="hb" title="${esc(t||'')}"><span class="nm">${esc(n)}</span><span class="trk"><span class="fill" style="display:block;width:${(v/mx*100).toFixed(1)}%"></span></span><span class="vl">${fmtR(v)}</span></div>`).join('');
+}
+function geoBlock(V, months, key, ids, labels){
+  const tot=W(); V.forEach(r=>add(tot,r.valor,r.prazo));
+  const g = group(V, key, r=>r.valor, r=>r.prazo);
+  const cli = new Map(); V.forEach(r=>{ const k=key(r); if(!cli.has(k)) cli.set(k,new Set()); cli.get(k).add(r.cod); });
+  const ord = sortedGroup(g);
+  const nCli = new Set(V.map(r=>r.cod)).size;
+  $(ids.kpis).innerHTML = [
+    kpiTxt('Faturamento', fmtR(tot.v), `${fmtN(tot.n)} NFs`),
+    kpiTxt(labels.qtd, fmtN(g.size), ord[0]?`maior: ${ord[0][0]} (${fmtD(ord[0][1].v/(tot.v||1)*100)}%)`:''),
+    kpiTxt('Clientes atendidos', fmtN(nCli), ''),
+    kpiTxt('Ticket médio por NF', fmtR(tot.n?tot.v/tot.n:null), ''),
+    kpi('PMV — prazo médio de vendas', wavg(tot), 'dias', 'ponderado pelo valor')
+  ].join('');
+  hbars(ids.bars, ord.slice(0,27).map(([k,a])=>[k, a.v, `${k}: ${fmtR(a.v)} · ${a.n} NFs · PMV ${fmtD(wavg(a))} dias`]));
+  const m = new Map(); V.forEach(r=>{ if(!m.has(r.mes)) m.set(r.mes,W()); add(m.get(r.mes), r.valor, r.prazo); });
+  lineChart(ids.ch, months, [{name:'Faturamento', color:'var(--s1)', vals: months.map(x=>m.has(x)?m.get(x).v:null), extra: x=>m.has(x)?`${m.get(x).n} NFs`:''}], moneyOpts);
+  lineChart(ids.chp, months, [{name:'PMV', color:'var(--s1)', vals: months.map(x=>m.has(x)?wavg(m.get(x)):null)}], {h:180});
+  table(ids.tb, [labels.col,'NFs','Clientes','Valor','% valor','Ticket médio','PMV (dias)','vs. média'],
+    ord.map(([k,a])=>[k, fmtN(a.n), fmtN(cli.get(k).size), fmtR(a.v), barCell(a.v/(tot.v||1)*100), fmtR(a.v/a.n), fmtD(wavg(a)), deltaPill(wavg(a)-(wavg(tot)||0))]), {raw:[4,7]});
+}
+function renderBR(V, months){ geoBlock(V, months, r=>r.uf, {kpis:'kpisBR', bars:'barsBR', ch:'chBR', chp:'chBRpmv', tb:'tbBR'}, {qtd:'UFs com venda', col:'UF'}); }
+function renderEX(V, months){
+  geoBlock(V, months, r=>r.pais, {kpis:'kpisEX', bars:'barsEX', ch:'chEX', chp:'chEXpmv', tb:'tbEX'}, {qtd:'Países com venda', col:'País'});
+  const g = new Map(); V.forEach(r=>{ const k=r.pais+'|'+r.cliente; if(!g.has(k)) g.set(k,{pais:r.pais, cli:r.cliente, a:W(), ult:r.data}); const o=g.get(k); add(o.a,r.valor,r.prazo); if(r.data>o.ult) o.ult=r.data; });
+  table('tbEXcli', ['Cliente','País','NFs','Valor','PMV (dias)','Última NF'],
+    [...g.values()].sort((a,b)=>b.a.v-a.a.v).map(o=>[o.cli, o.pais, fmtN(o.a.n), fmtR(o.a.v), fmtD(wavg(o.a)), o.ult.split('-').reverse().join('/')]));
+}
 function kpi(lbl,v,unit,hint){ return `<div class="kpi"><div class="lbl">${lbl}</div><div class="val">${v==null?'–':fmtD(v)}<small>${v==null?'':unit}</small></div><div class="hint">${esc(hint)}</div></div>`; }
 function sortedGroup(m){ return [...m.entries()].sort((a,b)=>b[1].v-a[1].v); }
 function barCell(p){ return `<span class="bar" style="width:${Math.max(1,Math.min(60,p*0.6))}px"></span>${fmtD(p)}%`; }
@@ -406,17 +524,18 @@ function table(id, heads, rows, opt={}){
 }
 
 /* Gráfico de linhas em SVG (eixo único, em dias) com crosshair + tooltip */
-function lineChart(id, months, series){
+function lineChart(id, months, series, o={}){
+  const fmtAx = o.axis || (v=>fmtD(v,0)), fmtV = o.val || (v=>fmtD(v)+' dias'), fmtL = o.last || (v=>fmtD(v));
   const el=$(id);
   const all = series.flatMap(s=>s.vals).filter(v=>v!=null);
   if(!months.length || !all.length){ el.innerHTML='<div class="empty">Sem dados no período</div>'; return; }
-  const W_=640, H=250, ml=38, mr=14, mt=12, mb=28, iw=W_-ml-mr, ih=H-mt-mb;
+  const W_=640, H=o.h||250, ml=o.ml||38, mr=14, mt=12, mb=28, iw=W_-ml-mr, ih=H-mt-mb;
   let max = Math.max(...all), min = Math.min(0, ...all);
   const step = niceStep((max-min)/4); max = Math.ceil(max/step)*step; min = Math.floor(min/step)*step; if(max===min) max=min+step;
   const x = i => ml + (months.length===1 ? iw/2 : i*iw/(months.length-1));
   const y = v => mt + ih - (v-min)/(max-min)*ih;
   let g='';
-  for(let v=min; v<=max+1e-9; v+=step){ g+=`<line x1="${ml}" x2="${W_-mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end" font-size="10.5" fill="var(--text2)">${fmtD(v,0)}</text>`; }
+  for(let v=min; v<=max+1e-9; v+=step){ g+=`<line x1="${ml}" x2="${W_-mr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end" font-size="10.5" fill="var(--text2)">${fmtAx(v)}</text>`; }
   const every = Math.ceil(months.length/12);
   months.forEach((m,i)=>{ if(i%every===0||i===months.length-1) g+=`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="var(--text2)">${fmtM(m)}</text>`; });
   let lines='';
@@ -426,7 +545,7 @@ function lineChart(id, months, series){
     lines+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     s.vals.forEach((v,i)=>{ if(v!=null) lines+=`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}" stroke="#fff" stroke-width="1.5"/>`; });
     const li = s.vals.map((v,i)=>v!=null?i:-1).filter(i=>i>=0).pop();
-    if(li!=null && series.length===1) lines+=`<text x="${x(li)}" y="${y(s.vals[li])-8}" text-anchor="end" font-size="11" font-weight="600" fill="var(--text)">${fmtD(s.vals[li])}</text>`;
+    if(li!=null && series.length===1) lines+=`<text x="${x(li)}" y="${y(s.vals[li])-8}" text-anchor="end" font-size="11" font-weight="600" fill="var(--text)">${fmtL(s.vals[li])}</text>`;
   });
   const legend = series.length>1 ? `<div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}</div>` : '';
   el.innerHTML = legend + `<svg viewBox="0 0 ${W_} ${H}" role="img" aria-label="${series.map(s=>s.name).join(', ')} por mês">${g}<line class="xh" x1="0" x2="0" y1="${mt}" y2="${mt+ih}" stroke="var(--text2)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>${lines}<rect x="${ml}" y="${mt}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip"></div>`;
@@ -435,7 +554,7 @@ function lineChart(id, months, series){
     const r=svg.getBoundingClientRect(), sx=(e.clientX-r.left)*W_/r.width;
     const i = months.length===1?0:Math.max(0,Math.min(months.length-1, Math.round((sx-ml)/iw*(months.length-1))));
     xh.setAttribute('x1',x(i)); xh.setAttribute('x2',x(i)); xh.setAttribute('visibility','visible');
-    tip.innerHTML = `<b>${fmtM(months[i])}</b>` + series.map(s=>`<div><span style="color:${s.color}">●</span> ${s.name}: ${fmtD(s.vals[i])} dias${s.extra&&s.extra(months[i])?'<br><span style="color:var(--text2)">'+s.extra(months[i])+'</span>':''}</div>`).join('');
+    tip.innerHTML = `<b>${fmtM(months[i])}</b>` + series.map(s=>`<div><span style="color:${s.color}">●</span> ${s.name}: ${s.vals[i]==null?'–':fmtV(s.vals[i])}${s.extra&&s.extra(months[i])?'<br><span style="color:var(--text2)">'+s.extra(months[i])+'</span>':''}</div>`).join('');
     tip.style.display='block';
     const px = x(i)*r.width/W_; tip.style.left = (px > r.width*0.6 ? px - tip.offsetWidth - 12 : px + 12) + 'px'; tip.style.top = (e.clientY-r.top-10) + 'px';
   });
@@ -443,25 +562,49 @@ function lineChart(id, months, series){
 }
 function niceStep(raw){ if(raw<=0) return 1; const p=Math.pow(10,Math.floor(Math.log10(raw))); const f=raw/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
 
+/* ========= Seleção múltipla ========= */
+function MultiSelect(id, allLabel){
+  const root=$(id); let opts=[], sel=new Set(), allowed=null;
+  root.innerHTML = `<button type="button" class="ms-btn">${allLabel}</button><div class="ms-pop"><input type="search" placeholder="Buscar…"><div class="ms-acts"><button type="button" data-a="all">Marcar visíveis</button><button type="button" data-a="none">Limpar</button></div><div class="ms-list"></div></div>`;
+  const btn=root.querySelector('.ms-btn'), list=root.querySelector('.ms-list'), q=root.querySelector('input[type=search]');
+  const visible = () => opts.filter(o=>(!allowed||allowed.has(o)||sel.has(o)) && o.toLowerCase().includes(q.value.toLowerCase()));
+  const label = () => { btn.textContent = !sel.size ? allLabel : sel.size===1 ? [...sel][0] : sel.size+' selecionados'; btn.title=[...sel].join(', '); };
+  const draw = () => { list.innerHTML = visible().map(o=>`<label><input type="checkbox" value="${esc(o)}" ${sel.has(o)?'checked':''}> ${esc(o)}</label>`).join('') || '<div class="empty">Nada encontrado</div>'; };
+  const changed = () => { label(); render(); };
+  btn.onclick = e => { e.stopPropagation(); document.querySelectorAll('.ms.open').forEach(m=>m!==root&&m.classList.remove('open')); root.classList.toggle('open'); if(root.classList.contains('open')){ q.value=''; draw(); q.focus(); } };
+  root.querySelector('.ms-pop').onclick = e => e.stopPropagation();
+  q.oninput = draw;
+  list.onchange = e => { const v=e.target.value; e.target.checked?sel.add(v):sel.delete(v); changed(); };
+  root.querySelector('[data-a=all]').onclick = () => { visible().forEach(o=>sel.add(o)); draw(); changed(); };
+  root.querySelector('[data-a=none]').onclick = () => { sel.clear(); draw(); changed(); };
+  return {
+    setOptions(v){ opts=v; sel=new Set([...sel].filter(o=>v.includes(o))); label(); },
+    limit(set){ allowed=set; for(const o of [...sel]) if(!set.has(o)) sel.delete(o); label(); if(root.classList.contains('open')) draw(); },
+    selected(){ return sel.size ? sel : null; }
+  };
+}
+document.addEventListener('click', ()=>document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open')));
+const MS = { pais: MultiSelect('fPais','Todos'), reg: MultiSelect('fReg','Todas'), rep: MultiSelect('fRep','Todos'), uf: MultiSelect('fUf','Todas') };
+
 /* ========= Dados de exemplo ========= */
 function demo(){
   let seed=7; const rnd=()=>((seed=(seed*16807)%2147483647)/2147483647);
   const pick=a=>a[Math.floor(rnd()*a.length)];
-  const reps=['ANDRE','BETO SUL','CARLA','DIEGO','FERNANDA','GUSTAVO'], ufs=['SC','PR','RS','SP','MG','GO'];
+  const reps=['ANDRE','BETO SUL','CARLA','DIEGO','FERNANDA','GUSTAVO'], regOf={ANDRE:'SUL',  'BETO SUL':'SUL', CARLA:'SUDESTE', DIEGO:'SUDESTE', FERNANDA:'CENTRO-OESTE', GUSTAVO:'SUL'}, ufs=['SC','PR','RS','SP','MG','GO'];
   const conds=[[1,'À VISTA',1,0],[10,'30 DIAS',1,30],[12,'30/60',2,45],[14,'30/60/90',3,60],[16,'28/56/84/112',4,70],[20,'60/90/120',3,90],[22,'ANTECIPADO',null,null]];
   const clientes=Array.from({length:40},(_,i)=>'CLIENTE EXEMPLO '+String(i+1).padStart(2,'0')+' LTDA');
   const forns=Array.from({length:15},(_,i)=>'FORNECEDOR '+String.fromCharCode(65+i)+' S.A.');
   const ports=['A01','BB1','ITA','SIC','CXA'];
   const vendas=[], fin=[], compras=[];
   const start=new Date(); start.setMonth(start.getMonth()-18); start.setDate(1);
-  let nf=50000;
+  let nf=50000, rp;
   for(let d=new Date(start); d<=new Date(); d.setDate(d.getDate()+1)){
     const ds=d.toISOString().slice(0,10), drift=(d-start)/86400000/30;
     for(let k=0;k<4;k++){
       const c = rnd()<0.08+drift*0.004 ? conds[5] : pick(conds);
       const v = Math.round(2000+rnd()*25000), cli=pick(clientes);
       nf++;
-      vendas.push({Nf:nf, Codigo:clientes.indexOf(cli)+100, Nome:cli, Central:clientes.indexOf(cli)+100, Uf:pick(ufs), Representante:pick(reps), Valor:v, Data:ds, Cd_condicao_pag:c[0], Condicao:c[1], Parcelas:c[2], PrazoMedio:c[3], CFOP:rnd()<0.05?'5949':'5101'});
+      vendas.push({Nf:nf, Codigo:clientes.indexOf(cli)+100, Nome:cli, Central:clientes.indexOf(cli)+100, ...(rnd()<0.1?{Uf:'EX', Pais:pick(['ARGENTINA','PARAGUAI','URUGUAI','CHILE','BOLIVIA','PERU'])}:{Uf:pick(ufs), Pais:'BRASIL'}), Representante:(rp=pick(reps)), Regional:regOf[rp], Valor:v, Data:ds, Cd_condicao_pag:c[0], Condicao:c[1], Parcelas:c[2], PrazoMedio:c[3], CFOP:rnd()<0.05?'5949':'5101'});
       const nparc=c[2]||1, prazos = c[3]==null?[0]:Array.from({length:nparc},(_,j)=>c[3]-(nparc-1)*15+j*30);
       prazos.forEach((p,j)=>{
         const vo=new Date(d); vo.setDate(vo.getDate()+Math.max(0,p));
@@ -478,11 +621,16 @@ function demo(){
 }
 
 /* ========= Eventos ========= */
-['fDe','fAte','fRep','fUf','fTipo'].forEach(id=>$(id).addEventListener('change',render));
+['fDe','fAte','fTipo'].forEach(id=>$(id).addEventListener('change',render));
 $('fCfop').addEventListener('input',()=>{ clearTimeout(window._t); window._t=setTimeout(render,300); });
 $('btnLoad').onclick=load;
 $('btnDemo').onclick=demo;
 $('btnPrint').onclick=()=>window.print();
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.id===b.dataset.tab));
+  document.title = b.textContent + ' — Prazos Médios';
+});
 $('btnCfg').onclick=()=>{ $('cfg').classList.toggle('open'); $('cfgBase').value=CFG.base; $('cfgInicio').value=CFG.inicio; };
 $('cfgSave').onclick=()=>{ CFG.base=$('cfgBase').value.trim()||CFG.base; CFG.inicio=$('cfgInicio').value||CFG.inicio; LSset('base',CFG.base); LSset('inicio',CFG.inicio); $('cfg').classList.remove('open'); load(); };
 
