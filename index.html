@@ -103,6 +103,14 @@
     .grid2:has(> .no-print){grid-template-columns:1fr!important}
     .chart svg{max-height:62mm;width:auto;max-width:100%;margin:0 auto}
     section.keep{break-inside:avoid}
+    .row12{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start;break-inside:avoid;margin-bottom:8px}
+    .row12 section{margin:0;break-inside:avoid}
+    .row12 .grid2{grid-template-columns:1fr!important;gap:4px}
+    .row12 .chart svg{max-height:none;width:100%}
+    .row12 .desc{font-size:9px;margin-bottom:4px}
+    .row12 h3{margin:4px 0 3px}
+    .row12 td,.row12 th{padding:3px 6px}
+    .kpis{margin-bottom:8px}
     section.pb{break-before:auto}
     .grid2{grid-template-columns:1fr 1fr!important}
     section.pb{break-before:page}
@@ -160,6 +168,7 @@
 <div class="tab on" id="tabPrazos">
   <div class="kpis" id="kpis"></div>
 
+  <div class="row12">
   <section>
     <h2>1. Prazo médio de vendas (PMV)</h2>
     <p class="desc">Prazo médio da condição de pagamento de cada nota fiscal (média dos dias das parcelas em FAPRAZOP), ponderado pelo valor da nota.</p>
@@ -170,23 +179,24 @@
     <div class="grid2">
       <div id="wTbReg" style="display:none;grid-column:1/-1"><h3>Por regional</h3><div class="tbl" id="tbReg"></div></div>
       <div class="no-print"><h3>Por representante</h3><div class="tbl" id="tbRep"></div></div>
-      <div><h3>Por UF</h3><div class="tbl" id="tbUf"></div></div>
+      <div class="no-print"><h3>Por UF</h3><div class="tbl" id="tbUf"></div></div>
     </div>
     <div class="no-print"><h3>Clientes por valor faturado — clique no cabeçalho para ordenar</h3>
     <div class="tbl" id="tbCli"></div></div>
   </section>
 
-  <section class="pb">
+  <section>
     <h2>2. Prazo financeiro (duplicatas a receber)</h2>
     <p class="desc">Prazo concedido = emissão → vencimento original · Prazo efetivo = emissão → liquidação · Atraso = liquidação − vencimento prorrogado. Parcelas vencidas em aberto contam até hoje; a vencer, até o vencimento. Todos ponderados pelo valor da parcela.</p>
     <div class="grid2">
       <div><h3>Prazo concedido x efetivo por mês de emissão</h3><div class="chart" id="chFin"></div></div>
-      <div><h3>Carteira em aberto por faixa</h3><div class="tbl" id="tbAging"></div>
+      <div><h3>Títulos em aberto por faixa de vencimento</h3><div class="tbl" id="tbAging"></div>
         <div class="no-print"><h3>Por portador</h3><div class="tbl" id="tbPort"></div></div></div>
     </div>
     <div class="no-print"><h3>Clientes — prazo efetivo e atraso médio</h3>
     <div class="tbl" id="tbFinCli"></div></div>
   </section>
+  </div>
 
   <section class="pb">
     <h2>3. Prazo médio de compras (PMP)</h2>
@@ -293,12 +303,19 @@ function normFin(rows){
   for(const r of rows){
     const em = toDate(r.Emissao), vo = toDate(r.VctoOrig)||toDate(r.Prorrogado), pr = toDate(r.Prorrogado)||vo, lq = toDate(r.Liquidacao);
     if(!em || !vo) continue;
+    /* Em aberto = saldo (Vl_saldo) maior que zero, mesmo critério do relatório de títulos em aberto.
+       Sem a coluna Saldo, cai no critério antigo (sem data de liquidação). */
+    const temSaldo = r.Saldo!=null && r.Saldo!=='';
+    const saldo = temSaldo ? num(r.Saldo) : (lq ? 0 : num(r.Valor));
+    const aberto = saldo > 0.005;
     out.push({ nf:r.Nf, parc:r.Parcela, tipo:String(r.Cd_tipo||'').trim().toUpperCase(), port:(r.Cd_portador||'–').trim(),
       cliente:(r.Cliente||r.Cd_empresa||'').toString().trim(), valor:num(r.Valor), em, mes:ym(em), vo, pr, lq,
+      saldo, aberto,
       concedido: days(em,vo), prorrog: days(vo,pr),
-      /* Efetivo: pagas = até a liquidação; vencidas em aberto = até hoje; a vencer = até o vencimento (supõe pagamento em dia) */
-      efetivo: lq ? days(em,lq) : (pr < todayStr ? days(em,todayStr) : days(em,pr)),
-      atraso: lq ? days(pr,lq) : (pr < todayStr ? days(pr,todayStr) : null) });
+      /* Efetivo: em aberto vencida = até hoje; em aberto a vencer = até o vencimento (supõe pagamento em dia);
+         quitada = até a liquidação; quitada sem data de liquidação (baixa/abatimento) = fora do cálculo */
+      efetivo: aberto ? (pr < todayStr ? days(em,todayStr) : days(em,pr)) : (lq ? days(em,lq) : null),
+      atraso:  aberto ? (pr < todayStr ? days(pr,todayStr) : null)       : (lq ? days(pr,lq) : null) });
   }
   return out;
 }
@@ -417,7 +434,7 @@ function render(){
   $('kpis').innerHTML = [
     kpi('PMV — prazo médio de vendas', wavg(kV), 'dias', `${fmtN(V.length)} NFs · ${fmtR(kV.v)}`+(semPrazo?` · ${semPrazo} sem prazo cadastrado`:'')),
     kpi('Prazo concedido (duplicatas)', wavg(kFc), 'dias', `${fmtN(F.length)} parcelas · ${fmtR(kFc.v)}`),
-    kpi('Prazo efetivo de recebimento', wavg(kFe), 'dias', `${fmtN(F.filter(r=>r.lq).length)} liquidadas · em aberto estimadas`),
+    kpi('Prazo efetivo de recebimento', wavg(kFe), 'dias', `${fmtN(F.filter(r=>!r.aberto).length)} quitadas · em aberto estimadas`),
     kpi('Atraso médio no pagamento', wavg(kAt), 'dias', atrasoPct!=null?`${fmtD(atrasoPct)}% do valor vencido pago/aberto com atraso`:''),
     kpi('PMP — prazo médio de compras', pmp, 'dias', `${fmtN(C.length)} títulos · ${fmtR(kC.v)}`),
     kpi('Diferença recebimento − pagamento', gap, 'dias', gap==null?'':(gap>0?'empresa financia o cliente':'fornecedor financia a operação'))
@@ -453,14 +470,18 @@ function render(){
     {name:'Prazo concedido', color:'var(--s1)', vals: months.map(m=>fmC.has(m)?wavg(fmC.get(m)):null)},
     {name:'Prazo efetivo', color:'var(--s2)', vals: months.map(m=>fmE.has(m)?wavg(fmE.get(m)):null)}
   ]);
-  const abertos = RAW.fin.filter(r=>!r.lq && (!tipo||tipo.has(r.tipo)) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
-  const faixas = [['A vencer',-1e9,0],['Vencido 1–30 dias',1,30],['Vencido 31–60',31,60],['Vencido 61–90',61,90],['Vencido > 90',91,1e9]];
-  const totAb = abertos.reduce((s,r)=>s+r.valor,0)||1;
-  table('tbAging', ['Faixa','Parcelas','Valor','% carteira'], faixas.map(([n,a,b])=>{
-    const rs = abertos.filter(r=>{ const d=days(r.pr,todayStr); return d>=a && d<=b; });
-    const v = rs.reduce((s,r)=>s+r.valor,0);
-    return [n, fmtN(rs.length), fmtR(v), barCell(v/totAb*100)];
-  }), {raw:[3], nosort:true});
+  const abertos = RAW.fin.filter(r=>r.aberto && (!tipo||tipo.has(r.tipo)) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
+  const faixas = [['Vencido 1–30 dias',1,30],['Vencido 31–60',31,60],['Vencido 61–90',61,90],['Vencido > 90',91,1e9]];
+  const venc = abertos.filter(r=>days(r.pr,todayStr)>=1), aVenc = abertos.filter(r=>days(r.pr,todayStr)<1);
+  const totVenc = venc.reduce((s,r)=>s+r.saldo,0), totAV = aVenc.reduce((s,r)=>s+r.saldo,0);
+  const rowsAg = faixas.map(([n,a,b])=>{
+    const rs = venc.filter(r=>{ const d=days(r.pr,todayStr); return d>=a && d<=b; });
+    const v = rs.reduce((s,r)=>s+r.saldo,0);
+    return [n, fmtN(rs.length), fmtR(v), barCell(v/(totVenc||1)*100)];
+  });
+  rowsAg.push(['<b>Total vencido</b>', `<b>${fmtN(venc.length)}</b>`, `<b>${fmtR(totVenc)}</b>`, '<b>100%</b>']);
+  rowsAg.push(['A vencer (fora do total)', fmtN(aVenc.length), fmtR(totAV), '–']);
+  table('tbAging', ['Faixa (saldo em aberto)','Parcelas','Saldo','% do vencido'], rowsAg, {raw:[0,1,2,3], nosort:true});
   const portC = group(F,r=>r.port,r=>r.valor,r=>r.concedido), portE = group(Fl,r=>r.port,r=>r.valor,r=>r.efetivo), portA = group(Fa,r=>r.port,r=>r.valor,r=>r.atraso);
   table('tbPort', ['Portador','Parcelas','Valor','Concedido','Efetivo','Atraso'],
     sortedGroup(portC).map(([k,a])=>[k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), fmtD(portE.has(k)?wavg(portE.get(k)):null), fmtD(portA.has(k)?wavg(portA.get(k)):null)]));
@@ -468,8 +489,8 @@ function render(){
   table('tbFinCli', ['Cliente','Parcelas','Valor','Concedido','Efetivo','Atraso médio','Em aberto vencido'],
     sortedGroup(fcC).slice(0,60).map(([k,a])=>{
       const at = fcA.has(k)?wavg(fcA.get(k)):null;
-      const venc = abertos.filter(r=>r.cliente===k && r.pr<todayStr).reduce((s,r)=>s+r.valor,0);
-      return [k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), fmtD(fcE.has(k)?wavg(fcE.get(k)):null), atrasoPill(at), venc?fmtR(venc):'–'];
+      const vencC = abertos.filter(r=>r.cliente===k && r.pr<todayStr).reduce((s,r)=>s+r.saldo,0);
+      return [k, fmtN(a.n), fmtR(a.v), fmtD(wavg(a)), fmtD(fcE.has(k)?wavg(fcE.get(k)):null), atrasoPill(at), vencC?fmtR(vencC):'–'];
     }), {raw:[5]});
 
   /* 3. Compras */
@@ -554,11 +575,12 @@ function table(id, heads, rows, opt={}){
 
 /* Gráfico de linhas em SVG (eixo único, em dias) com crosshair + tooltip */
 function lineChart(id, months, series, o={}){
+  if(o.labels===undefined) o.labels = !o.axis; /* gráficos em dias: rótulo em todos os meses */
   const fmtAx = o.axis || (v=>fmtD(v,0)), fmtV = o.val || (v=>fmtD(v)+' dias'), fmtL = o.last || (v=>fmtD(v));
   const el=$(id);
   const all = series.flatMap(s=>s.vals).filter(v=>v!=null);
   if(!months.length || !all.length){ el.innerHTML='<div class="empty">Sem dados no período</div>'; return; }
-  const W_=640, H=o.h||250, ml=o.ml||38, mr=14, mt=12, mb=28, iw=W_-ml-mr, ih=H-mt-mb;
+  const W_=640, H=o.h||250, ml=o.ml||38, mr=14, mt=o.labels?18:12, mb=28, iw=W_-ml-mr, ih=H-mt-mb;
   let max = Math.max(...all), min = Math.min(0, ...all);
   const step = niceStep((max-min)/4); max = Math.ceil(max/step)*step; min = Math.floor(min/step)*step; if(max===min) max=min+step;
   const x = i => ml + (months.length===1 ? iw/2 : i*iw/(months.length-1));
@@ -574,8 +596,20 @@ function lineChart(id, months, series, o={}){
     lines+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
     s.vals.forEach((v,i)=>{ if(v!=null) lines+=`<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${s.color}" stroke="#fff" stroke-width="1.5"/>`; });
     const li = s.vals.map((v,i)=>v!=null?i:-1).filter(i=>i>=0).pop();
-    if(li!=null && series.length===1) lines+=`<text x="${x(li)}" y="${y(s.vals[li])-8}" text-anchor="end" font-size="11" font-weight="600" fill="var(--text)">${fmtL(s.vals[li])}</text>`;
+    if(li!=null && series.length===1 && !o.labels) lines+=`<text x="${x(li)}" y="${y(s.vals[li])-8}" text-anchor="end" font-size="11" font-weight="600" fill="var(--text)">${fmtL(s.vals[li])}</text>`;
   });
+  if(o.labels){
+    const fs = months.length>18 ? 8.5 : 10;
+    months.forEach((m,i)=>{
+      const vs = series.map(s=>s.vals[i]);
+      series.forEach((s,k)=>{
+        const v=vs[k]; if(v==null) return;
+        const other = vs.filter((x,j)=>j!==k && x!=null);
+        const below = other.length && other.some(x=>x>v);   /* série de baixo: rótulo abaixo do ponto */
+        lines+=`<text x="${x(i)}" y="${below? y(v)+fs+5 : y(v)-7}" text-anchor="middle" font-size="${fs}" font-weight="600" fill="var(--text)" stroke="#fff" stroke-width="3" paint-order="stroke">${fmtD(v,0)}</text>`;
+      });
+    });
+  }
   const legend = series.length>1 ? `<div class="legend">${series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}</div>` : '';
   el.innerHTML = legend + `<svg viewBox="0 0 ${W_} ${H}" role="img" aria-label="${series.map(s=>s.name).join(', ')} por mês">${g}<line class="xh" x1="0" x2="0" y1="${mt}" y2="${mt+ih}" stroke="var(--text2)" stroke-width="1" stroke-dasharray="3 3" visibility="hidden"/>${lines}<rect x="${ml}" y="${mt}" width="${iw}" height="${ih}" fill="transparent"/></svg><div class="tip"></div>`;
   const svg=el.querySelector('svg'), tip=el.querySelector('.tip'), xh=el.querySelector('.xh');
@@ -640,7 +674,7 @@ function demo(){
         const pr=new Date(vo); if(rnd()<0.1) pr.setDate(pr.getDate()+Math.round(rnd()*20));
         const lq=new Date(pr); lq.setDate(lq.getDate()+Math.round((rnd()<0.2?rnd()*40:rnd()*4)-1));
         const pago = lq < new Date() && rnd()>0.03;
-        fin.push({Serie:'1', Nf:nf, Parcela:String(j+1), Cd_tipo:'R', Cd_portador:pick(ports), Cd_empresa:100, Cliente:cli, Valor:Math.round(v/nparc), Emissao:ds, VctoOrig:vo.toISOString().slice(0,10), Prorrogado:pr.toISOString().slice(0,10), Liquidacao: pago?lq.toISOString().slice(0,10):null});
+        fin.push({Serie:'1', Nf:nf, Parcela:String(j+1), Cd_tipo:'R', Cd_portador:pick(ports), Cd_empresa:100, Cliente:cli, Valor:Math.round(v/nparc), Emissao:ds, VctoOrig:vo.toISOString().slice(0,10), Prorrogado:pr.toISOString().slice(0,10), Liquidacao: pago?lq.toISOString().slice(0,10):null, Saldo: pago?0:(rnd()<0.15?0:Math.round(v/nparc))});
       });
     }
     if(rnd()<0.6){ const p=pick([28,30,45,56,60,90]) + Math.round(drift*0.5); const vt=new Date(d); vt.setDate(vt.getDate()+p);
