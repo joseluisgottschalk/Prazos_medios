@@ -147,7 +147,7 @@
   <label>UF <div class="ms" id="fUf"></div></label>
   <label>Portador <div class="ms" id="fPort"></div>
     <span style="display:flex;gap:4px;align-items:center;font-size:11px"><input type="checkbox" id="fPortEx" style="min-width:0;width:auto;margin:0"> excluir os marcados</span></label>
-  <label>Tipo de título (financeiro) <select id="fTipo"><option value="">Todos</option></select></label>
+  <label>Tipo de título (financeiro) <div class="ms" id="fTipo"></div></label>
   <label>Ignorar CFOP (vendas) <input id="fCfop" placeholder="ex.: 5949, 6949" style="min-width:150px"></label>
 </div>
 
@@ -364,7 +364,7 @@ function setData(v,f,c,label){
   MS.uf.setOptions([...new Set(RAW.vendas.map(r=>r.uf))].sort());
   MS.port.setOptions([...new Set(RAW.fin.map(r=>r.port))].sort());
   NF_PORT = new Map(); RAW.fin.forEach(r=>{ const k=String(r.nf); if(!NF_PORT.has(k)) NF_PORT.set(k,new Set()); NF_PORT.get(k).add(r.port); });
-  fillSelect('fTipo', [...new Set(RAW.fin.map(r=>r.tipo))].sort(), 'Todos');
+  MS.tipo.setOptions([...new Set(RAW.fin.map(r=>r.tipo))].sort());
   render();
 }
 function fillSelect(id, vals, all){
@@ -377,7 +377,7 @@ function fillSelect(id, vals, all){
 function monthsBetween(a,b){ const out=[]; if(!a||!b) return out; let [y,m]=a.split('-').map(Number); const [y2,m2]=b.split('-').map(Number); while(y<y2||(y===y2&&m<=m2)){ out.push(y+'-'+String(m).padStart(2,'0')); m++; if(m>12){m=1;y++;} } return out; }
 
 function render(){
-  const de=$('fDe').value, ate=$('fAte').value, tipo=$('fTipo').value;
+  const de=$('fDe').value, ate=$('fAte').value, tipo=MS.tipo.selected();
   const cfops = $('fCfop').value.split(/[,;\s]+/).map(s=>s.trim()).filter(Boolean);
   const pais = MS.pais.selected(), reg = MS.reg.selected(), rep = MS.rep.selected(), uf = MS.uf.selected();
   /* cascata: representantes e UFs disponíveis conforme as regionais escolhidas */
@@ -395,12 +395,12 @@ function render(){
   const V = VB.filter(r=>(!pais||pais.has(r.pais)) && (!uf||uf.has(r.uf)));
   /* financeiro: país vem da nota fiscal de venda */
   const nfPais = pais ? new Set(RAW.vendas.filter(r=>pais.has(r.pais)).map(r=>String(r.nf))) : null;
-  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||r.tipo===tipo) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
+  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||tipo.has(r.tipo)) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
   renderBR(VB.filter(r=>isBR(r) && (!uf||uf.has(r.uf))), months);
   renderEX(VB.filter(r=>!isBR(r) && (!pais||pais.has(r.pais))), months);
   const C = RAW.compras.filter(r=>inP(r.mes));
 
-  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (pais?` · País: ${[...pais].join(', ')}`:'') + (reg?` · Regional: ${[...reg].join(', ')}`:'') + (rep?` · Representante: ${[...rep].join(', ')}`:'') + (uf?` · UF: ${[...uf].join(', ')}`:'') + (portSel?` · Portador${portEx?' (exceto)':''}: ${[...portSel].join(', ')}`:'') + (tipo?` · Tipo: ${tipo}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
+  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (pais?` · País: ${[...pais].join(', ')}`:'') + (reg?` · Regional: ${[...reg].join(', ')}`:'') + (rep?` · Representante: ${[...rep].join(', ')}`:'') + (uf?` · UF: ${[...uf].join(', ')}`:'') + (portSel?` · Portador${portEx?' (exceto)':''}: ${[...portSel].join(', ')}`:'') + (tipo?` · Tipo: ${[...tipo].join(', ')}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
 
   /* KPIs */
   const kV=W(); V.forEach(r=>add(kV,r.valor,r.prazo));
@@ -453,7 +453,7 @@ function render(){
     {name:'Prazo concedido', color:'var(--s1)', vals: months.map(m=>fmC.has(m)?wavg(fmC.get(m)):null)},
     {name:'Prazo efetivo', color:'var(--s2)', vals: months.map(m=>fmE.has(m)?wavg(fmE.get(m)):null)}
   ]);
-  const abertos = RAW.fin.filter(r=>!r.lq && (!tipo||r.tipo===tipo) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
+  const abertos = RAW.fin.filter(r=>!r.lq && (!tipo||tipo.has(r.tipo)) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
   const faixas = [['A vencer',-1e9,0],['Vencido 1–30 dias',1,30],['Vencido 31–60',31,60],['Vencido 61–90',61,90],['Vencido > 90',91,1e9]];
   const totAb = abertos.reduce((s,r)=>s+r.valor,0)||1;
   table('tbAging', ['Faixa','Parcelas','Valor','% carteira'], faixas.map(([n,a,b])=>{
@@ -613,7 +613,7 @@ function MultiSelect(id, allLabel){
   };
 }
 document.addEventListener('click', ()=>document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open')));
-const MS = { port: MultiSelect('fPort','Todos'), pais: MultiSelect('fPais','Todos'), reg: MultiSelect('fReg','Todas'), rep: MultiSelect('fRep','Todos'), uf: MultiSelect('fUf','Todas') };
+const MS = { tipo: MultiSelect('fTipo','Todos'), port: MultiSelect('fPort','Todos'), pais: MultiSelect('fPais','Todos'), reg: MultiSelect('fReg','Todas'), rep: MultiSelect('fRep','Todos'), uf: MultiSelect('fUf','Todas') };
 
 /* ========= Dados de exemplo ========= */
 function demo(){
@@ -651,7 +651,7 @@ function demo(){
 }
 
 /* ========= Eventos ========= */
-['fDe','fAte','fTipo','fPortEx'].forEach(id=>$(id).addEventListener('change',render));
+['fDe','fAte','fPortEx'].forEach(id=>$(id).addEventListener('change',render));
 $('fCfop').addEventListener('input',()=>{ clearTimeout(window._t); window._t=setTimeout(render,300); });
 $('btnLoad').onclick=load;
 $('btnDemo').onclick=demo;
