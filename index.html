@@ -185,6 +185,7 @@
   <section class="pb">
     <h2>3. Prazo médio de compras (PMP)</h2>
     <p class="desc">Prazo de cada título a pagar (data → vencimento), fornecedores da divisão FO, portadores Z90 e A01, ponderado pelo valor.</p>
+    <p class="note" id="noteCompras"></p>
     <div class="grid2">
       <div><h3>Evolução mensal (dias, ponderado por valor)</h3><div class="chart" id="chCompras"></div></div>
       <div><h3>Por fornecedor</h3><div class="tbl" id="tbForn"></div></div>
@@ -294,13 +295,27 @@ function normFin(rows){
   }
   return out;
 }
+/* Compras: na GFLANCAM o contas a pagar vem com valor negativo e estornos aparecem como lançamento de sinal oposto.
+   Agrupa por fornecedor + NF + parcela, soma os sinais; se zerar é título estornado (descarta); senão usa o valor absoluto. */
+const COMPRAS_INFO = { estornados:0, positivos:0 };
 function normCompras(rows){
-  const out=[];
+  const g = new Map();
   for(const r of rows){
     const d = toDate(r.Data), v = toDate(r.Dt_vencimento);
-    if(!d || !v) continue;
-    const prazo = r.Prazo!=null && r.Prazo!=='' ? num(r.Prazo) : days(d,v);
-    out.push({ forn:(r.Nome_completo||r.Cd_empresa||'').toString().trim(), nf:r.Nf, data:d, mes:ym(d), valor:num(r.Valor), prazo, port:(r.Cd_portador||'').trim() });
+    const k = [r.Cd_empresa, r.Nf, String(r.Complemento??'').trim(), r.Cd_portador].join('|');
+    if(!g.has(k)) g.set(k, {rows:[], net:0});
+    const o = g.get(k); o.net += num(r.Valor); o.rows.push({r,d,v});
+  }
+  const out=[]; COMPRAS_INFO.estornados=0; COMPRAS_INFO.positivos=0;
+  for(const o of g.values()){
+    if(Math.abs(o.net) < 0.01){ COMPRAS_INFO.estornados++; continue; }
+    /* usa as datas do lançamento com o mesmo sinal do saldo (o título original, não o estorno) */
+    const base = o.rows.find(x=>Math.sign(num(x.r.Valor))===Math.sign(o.net) && x.d && x.v) || o.rows.find(x=>x.d && x.v);
+    if(!base) continue;
+    if(o.net > 0) COMPRAS_INFO.positivos++;
+    const r = base.r;
+    const prazo = r.Prazo!=null && r.Prazo!=='' ? num(r.Prazo) : days(base.d, base.v);
+    out.push({ forn:(r.Nome_completo||r.Cd_empresa||'').toString().trim(), nf:r.Nf, data:base.d, mes:ym(base.d), valor:Math.abs(o.net), prazo, port:(r.Cd_portador||'').trim() });
   }
   return out;
 }
@@ -445,6 +460,7 @@ function render(){
     }), {raw:[5]});
 
   /* 3. Compras */
+  $('noteCompras').textContent = `Valores do contas a pagar tratados em módulo (a GFLANCAM grava negativo). ${fmtN(COMPRAS_INFO.estornados)} título(s) com lançamento e estorno que se anulam foram desconsiderados` + (COMPRAS_INFO.positivos?`; ${fmtN(COMPRAS_INFO.positivos)} título(s) com saldo positivo entraram pelo valor absoluto.`:'.');
   const cm = group(C, r=>r.mes, r=>r.valor, r=>r.prazo);
   lineChart('chCompras', months, [{name:'PMP', color:'var(--s1)', vals: months.map(m=>cm.has(m)?wavg(cm.get(m)):null), extra: m=>cm.has(m)?`${fmtR(cm.get(m).v)} · ${cm.get(m).n} títulos`:''}]);
   const totC = kC.v||1;
@@ -615,7 +631,8 @@ function demo(){
       });
     }
     if(rnd()<0.6){ const p=pick([28,30,45,56,60,90]) + Math.round(drift*0.5); const vt=new Date(d); vt.setDate(vt.getDate()+p);
-      compras.push({Cd_empresa:1, Nome_completo:pick(forns), Nf:nf, Cd_portador:pick(['Z90','A01']), Dt_vencimento:vt.toISOString().slice(0,10), Valor:Math.round(3000+rnd()*40000), Data:ds, Prazo:p}); }
+      compras.push({Cd_empresa:1, Nome_completo:pick(forns), Nf:nf, Cd_portador:pick(['Z90','A01']), Dt_vencimento:vt.toISOString().slice(0,10), Valor:-Math.round(3000+rnd()*40000), Data:ds, Prazo:p, Complemento:'1'});
+      if(rnd()<0.1){ const c=compras[compras.length-1]; compras.push({...c, Valor:-c.Valor}); } }
   }
   setStatus(''); setData(vendas, fin, compras, 'DADOS DE EXEMPLO (fictícios) — clique em "Atualizar dados" para usar o n8n');
 }
