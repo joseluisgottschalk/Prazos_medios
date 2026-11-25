@@ -99,7 +99,11 @@
     .chart,.grid2>div,h3{break-inside:avoid}
     h3{break-after:avoid}
     tr{break-inside:avoid}
-    #tbCli tbody tr:nth-child(n+21),#tbFinCli tbody tr:nth-child(n+21),#tbForn tbody tr:nth-child(n+21){display:none}
+    #tbForn tbody tr:nth-child(n+21){display:none}
+    .grid2:has(> .no-print){grid-template-columns:1fr!important}
+    .chart svg{max-height:62mm;width:auto;max-width:100%;margin:0 auto}
+    section.keep{break-inside:avoid}
+    section.pb{break-before:auto}
     .grid2{grid-template-columns:1fr 1fr!important}
     section.pb{break-before:page}
     .tbl{max-height:none;overflow:visible;border:none}
@@ -141,6 +145,8 @@
   <label id="wReg" style="display:none">Regional <div class="ms" id="fReg"></div></label>
   <label>Representante <div class="ms" id="fRep"></div></label>
   <label>UF <div class="ms" id="fUf"></div></label>
+  <label>Portador <div class="ms" id="fPort"></div>
+    <span style="display:flex;gap:4px;align-items:center;font-size:11px"><input type="checkbox" id="fPortEx" style="min-width:0;width:auto;margin:0"> excluir os marcados</span></label>
   <label>Tipo de título (financeiro) <select id="fTipo"><option value="">Todos</option></select></label>
   <label>Ignorar CFOP (vendas) <input id="fCfop" placeholder="ex.: 5949, 6949" style="min-width:150px"></label>
 </div>
@@ -159,15 +165,15 @@
     <p class="desc">Prazo médio da condição de pagamento de cada nota fiscal (média dos dias das parcelas em FAPRAZOP), ponderado pelo valor da nota.</p>
     <div class="grid2">
       <div><h3>Evolução mensal (dias, ponderado por valor)</h3><div class="chart" id="chVendas"></div></div>
-      <div><h3>Por condição de pagamento</h3><div class="tbl" id="tbCond"></div></div>
+      <div class="no-print"><h3>Por condição de pagamento</h3><div class="tbl" id="tbCond"></div></div>
     </div>
     <div class="grid2">
       <div id="wTbReg" style="display:none;grid-column:1/-1"><h3>Por regional</h3><div class="tbl" id="tbReg"></div></div>
       <div><h3>Por representante</h3><div class="tbl" id="tbRep"></div></div>
       <div><h3>Por UF</h3><div class="tbl" id="tbUf"></div></div>
     </div>
-    <h3>Clientes por valor faturado — clique no cabeçalho para ordenar</h3>
-    <div class="tbl" id="tbCli"></div><div class="note print-only">Impressão mostra os 20 primeiros da ordenação atual.</div>
+    <div class="no-print"><h3>Clientes por valor faturado — clique no cabeçalho para ordenar</h3>
+    <div class="tbl" id="tbCli"></div></div>
   </section>
 
   <section class="pb">
@@ -176,10 +182,10 @@
     <div class="grid2">
       <div><h3>Prazo concedido x efetivo por mês de emissão</h3><div class="chart" id="chFin"></div></div>
       <div><h3>Carteira em aberto por faixa</h3><div class="tbl" id="tbAging"></div>
-        <h3>Por portador</h3><div class="tbl" id="tbPort"></div></div>
+        <div class="no-print"><h3>Por portador</h3><div class="tbl" id="tbPort"></div></div></div>
     </div>
-    <h3>Clientes — prazo efetivo e atraso médio</h3>
-    <div class="tbl" id="tbFinCli"></div>
+    <div class="no-print"><h3>Clientes — prazo efetivo e atraso médio</h3>
+    <div class="tbl" id="tbFinCli"></div></div>
   </section>
 
   <section class="pb">
@@ -192,7 +198,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="keep">
     <h2>4. Comparativo: prazo de recebimento x prazo de pagamento</h2>
     <p class="desc">Diferença positiva = a empresa financia o cliente por mais tempo do que é financiada pelo fornecedor (necessidade de capital de giro).</p>
     <div class="grid2">
@@ -226,7 +232,7 @@
       <div><h3>Faturamento mensal (R$)</h3><div class="chart" id="chEX"></div><h3>PMV mensal (dias)</h3><div class="chart" id="chEXpmv"></div></div>
     </div>
     <h3>Detalhe por país</h3><div class="tbl" id="tbEX"></div>
-    <h3>Clientes no exterior</h3><div class="tbl" id="tbEXcli"></div>
+    <div class="no-print"><h3>Clientes no exterior</h3><div class="tbl" id="tbEXcli"></div></div>
   </section>
 </div>
 </main>
@@ -239,6 +245,7 @@ const twoYearsAgo = (()=>{ const d=new Date(); d.setMonth(d.getMonth()-24); d.se
 let CFG = { base: LS('base') || 'http://localhost:5678/webhook', inicio: LS('inicio') || twoYearsAgo };
 
 const RAW = { vendas:[], fin:[], compras:[] };
+let NF_PORT = new Map(); /* NF -> portadores das duplicatas */
 
 /* ========= Helpers ========= */
 const $ = id => document.getElementById(id);
@@ -355,6 +362,8 @@ function setData(v,f,c,label){
   MS.pais.setOptions([...new Set(RAW.vendas.map(r=>r.pais))].sort((a,b)=>a==='BRASIL'?-1:b==='BRASIL'?1:a.localeCompare(b)));
   MS.rep.setOptions([...new Set(RAW.vendas.map(r=>r.rep))].sort());
   MS.uf.setOptions([...new Set(RAW.vendas.map(r=>r.uf))].sort());
+  MS.port.setOptions([...new Set(RAW.fin.map(r=>r.port))].sort());
+  NF_PORT = new Map(); RAW.fin.forEach(r=>{ const k=String(r.nf); if(!NF_PORT.has(k)) NF_PORT.set(k,new Set()); NF_PORT.get(k).add(r.port); });
   fillSelect('fTipo', [...new Set(RAW.fin.map(r=>r.tipo))].sort(), 'Todos');
   render();
 }
@@ -378,16 +387,20 @@ function render(){
   const inP = m => (!de || m>=de) && (!ate || m<=ate);
   const months = monthsBetween(de,ate);
 
-  const VB = RAW.vendas.filter(r=>inP(r.mes) && (!reg||reg.has(r.reg)) && (!rep||rep.has(r.rep)) && !cfops.includes(r.cfop)); /* base sem país/UF */
+  const portSel = MS.port.selected(), portEx = $('fPortEx').checked;
+  const portOk = p => !portSel || (portEx ? !portSel.has(p) : portSel.has(p));
+  /* NF de venda: incluir = alguma parcela com portador marcado; excluir = nenhuma parcela com portador marcado */
+  const nfPortOk = nf => { if(!portSel) return true; const ps = NF_PORT.get(String(nf)); const hit = !!ps && [...ps].some(p=>portSel.has(p)); return portEx ? !hit : hit; };
+  const VB = RAW.vendas.filter(r=>inP(r.mes) && nfPortOk(r.nf) && (!reg||reg.has(r.reg)) && (!rep||rep.has(r.rep)) && !cfops.includes(r.cfop)); /* base sem país/UF */
   const V = VB.filter(r=>(!pais||pais.has(r.pais)) && (!uf||uf.has(r.uf)));
   /* financeiro: país vem da nota fiscal de venda */
   const nfPais = pais ? new Set(RAW.vendas.filter(r=>pais.has(r.pais)).map(r=>String(r.nf))) : null;
-  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||r.tipo===tipo) && (!nfPais||nfPais.has(String(r.nf))));
+  const F = RAW.fin.filter(r=>inP(r.mes) && (!tipo||r.tipo===tipo) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
   renderBR(VB.filter(r=>isBR(r) && (!uf||uf.has(r.uf))), months);
   renderEX(VB.filter(r=>!isBR(r) && (!pais||pais.has(r.pais))), months);
   const C = RAW.compras.filter(r=>inP(r.mes));
 
-  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (pais?` · País: ${[...pais].join(', ')}`:'') + (reg?` · Regional: ${[...reg].join(', ')}`:'') + (rep?` · Representante: ${[...rep].join(', ')}`:'') + (uf?` · UF: ${[...uf].join(', ')}`:'') + (tipo?` · Tipo: ${tipo}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
+  $('printFilters').textContent = `Período: ${de?fmtM(de):'–'} a ${ate?fmtM(ate):'–'}` + (pais?` · País: ${[...pais].join(', ')}`:'') + (reg?` · Regional: ${[...reg].join(', ')}`:'') + (rep?` · Representante: ${[...rep].join(', ')}`:'') + (uf?` · UF: ${[...uf].join(', ')}`:'') + (portSel?` · Portador${portEx?' (exceto)':''}: ${[...portSel].join(', ')}`:'') + (tipo?` · Tipo: ${tipo}`:'') + (cfops.length?` · CFOP ignorados: ${cfops.join(', ')}`:'') + ` · Emitido em ${new Date().toLocaleString('pt-BR')}`;
 
   /* KPIs */
   const kV=W(); V.forEach(r=>add(kV,r.valor,r.prazo));
@@ -440,7 +453,7 @@ function render(){
     {name:'Prazo concedido', color:'var(--s1)', vals: months.map(m=>fmC.has(m)?wavg(fmC.get(m)):null)},
     {name:'Prazo efetivo', color:'var(--s2)', vals: months.map(m=>fmE.has(m)?wavg(fmE.get(m)):null)}
   ]);
-  const abertos = RAW.fin.filter(r=>!r.lq && (!tipo||r.tipo===tipo));
+  const abertos = RAW.fin.filter(r=>!r.lq && (!tipo||r.tipo===tipo) && portOk(r.port) && (!nfPais||nfPais.has(String(r.nf))));
   const faixas = [['A vencer',-1e9,0],['Vencido 1–30 dias',1,30],['Vencido 31–60',31,60],['Vencido 61–90',61,90],['Vencido > 90',91,1e9]];
   const totAb = abertos.reduce((s,r)=>s+r.valor,0)||1;
   table('tbAging', ['Faixa','Parcelas','Valor','% carteira'], faixas.map(([n,a,b])=>{
@@ -600,7 +613,7 @@ function MultiSelect(id, allLabel){
   };
 }
 document.addEventListener('click', ()=>document.querySelectorAll('.ms.open').forEach(m=>m.classList.remove('open')));
-const MS = { pais: MultiSelect('fPais','Todos'), reg: MultiSelect('fReg','Todas'), rep: MultiSelect('fRep','Todos'), uf: MultiSelect('fUf','Todas') };
+const MS = { port: MultiSelect('fPort','Todos'), pais: MultiSelect('fPais','Todos'), reg: MultiSelect('fReg','Todas'), rep: MultiSelect('fRep','Todos'), uf: MultiSelect('fUf','Todas') };
 
 /* ========= Dados de exemplo ========= */
 function demo(){
@@ -638,7 +651,7 @@ function demo(){
 }
 
 /* ========= Eventos ========= */
-['fDe','fAte','fTipo'].forEach(id=>$(id).addEventListener('change',render));
+['fDe','fAte','fTipo','fPortEx'].forEach(id=>$(id).addEventListener('change',render));
 $('fCfop').addEventListener('input',()=>{ clearTimeout(window._t); window._t=setTimeout(render,300); });
 $('btnLoad').onclick=load;
 $('btnDemo').onclick=demo;
